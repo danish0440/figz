@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, CornerRadius, Id, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
-use figcraft_doc::*;
+use figz_doc::*;
 use serde_json::{Value, json};
 
 use crate::FigApp;
@@ -85,7 +85,7 @@ pub fn typography(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId])
         return;
     }
     // While editing a range, character edits apply to it.
-    let range = figcraft_engine::textedit::selected_range(&app.session);
+    let range = figz_engine::textedit::selected_range(&app.session);
     let editing = range.is_some();
     let styles = target_styles(doc, &ids, range);
     let apply_style = |app: &mut FigApp, key: &str, v: Value| commit_text(app, &ids, range, json!({ key: v }));
@@ -115,7 +115,7 @@ fn path_row(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId], ids: 
         ids.iter().map(|i| doc.node(*i).and_then(|n| n.kind.text()).and_then(|t| t.path.as_ref()).map(|p| (p.start(), p.flip))).collect();
     let Some(paths) = paths else {
         let other = sel.iter().find(|i| !ids.contains(i)).and_then(|i| doc.node(*i));
-        if ids.len() == 1 && sel.len() == 2 && other.is_some_and(|n| figcraft_doc::geometry::stroke_geometry(n).is_some()) {
+        if ids.len() == 1 && sel.len() == 2 && other.is_some_and(|n| figz_doc::geometry::stroke_geometry(n).is_some()) {
             row(ui, 32.0, |ui| {
                 if widgets::button(ui, tr("Put text on path"), false, true).clicked() {
                     app.run("text.onPath", json!({ "ids": sel }));
@@ -172,7 +172,7 @@ fn text_style_params(ids: &[NodeId], range: Option<(NodeId, usize, usize)>, mut 
 /// The font rows: family, style and size, line height and letter spacing.
 fn font_rows(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], styles: &[TextStyle], editing: bool, apply_style: &dyn Fn(&mut FigApp, &str, Value)) {
     let t = Tokens::get(ui.ctx());
-    let range = figcraft_engine::textedit::selected_range(&app.session);
+    let range = figz_engine::textedit::selected_range(&app.session);
 
     // Font family.
     let family = uniform(styles, |s| s.font_family.clone());
@@ -196,7 +196,7 @@ fn font_rows(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], styles: &[TextStyle]
         let fam = family.clone();
         menu_popup(&resp).width(200.0).show(|ui| match &fam {
             Some(fam) => {
-                let list = figcraft_text::family_styles(fam);
+                let list = figz_text::family_styles(fam);
                 if list.is_empty() {
                     widgets::label(ui, tr("Font not installed"), t.text_tertiary);
                 }
@@ -361,9 +361,9 @@ pub(crate) fn live(app: &mut FigApp, label: &str, cmd: &str, params: Value, done
 }
 
 /// The variable font the shown styles use (one family, one variable face), if any.
-fn variable_face(styles: &[TextStyle]) -> Option<Arc<figcraft_text::Face>> {
+fn variable_face(styles: &[TextStyle]) -> Option<Arc<figz_text::Face>> {
     let family = uniform(styles, |s| s.font_family.clone())?;
-    let face = figcraft_text::find_face(&family, &styles.first()?.font_style)?;
+    let face = figz_text::find_face(&family, &styles.first()?.font_style)?;
     (face.is_variable() && face.family.eq_ignore_ascii_case(&family)).then_some(face)
 }
 
@@ -430,7 +430,7 @@ fn type_settings(
         }
         caption(ui, tr("List style"));
         // While editing: the selected paragraphs' list.
-        let range = figcraft_engine::textedit::selected_range(&app.session);
+        let range = figz_engine::textedit::selected_range(&app.session);
         let list = common(doc, ids, |n| {
             n.kind.text().and_then(|t| {
                 let (a, b) = range.filter(|r| r.0 == n.id).map_or((0, t.char_count()), |(_, a, b)| (a, b));
@@ -516,7 +516,7 @@ fn type_settings(
         variable_axes(app, ui, ids, styles, face);
     } else {
         // Which features the font has (first style shown).
-        let face = uniform(styles, |s| (s.font_family.clone(), s.font_style.clone())).and_then(|(f, s)| figcraft_text::find_face(&f, &s));
+        let face = uniform(styles, |s| (s.font_family.clone(), s.font_style.clone())).and_then(|(f, s)| figz_text::find_face(&f, &s));
         let face_name = face.as_ref().map(|f| format!("{} {}", f.family, f.style)).unwrap_or_else(|| tr("Mixed fonts").into());
         widgets::label(ui, &face_name, t.text_secondary);
         egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
@@ -606,7 +606,7 @@ fn decoration_details(app: &mut FigApp, ui: &mut Ui, styles: &[TextStyle], apply
             let s = s.trim();
             if s.is_empty() || s.eq_ignore_ascii_case("auto") {
                 apply_style(app, "textDecorationColor", json!("auto"));
-            } else if let Some(c) = figcraft_color::Color::parse_css(s).or_else(|| figcraft_color::Color::from_hex(s)) {
+            } else if let Some(c) = figz_color::Color::parse_css(s).or_else(|| figz_color::Color::from_hex(s)) {
                 apply_style(app, "textDecorationColor", json!(format!("#{}", c.to_hex())));
             } else {
                 app.toast(trf("{value} isn't a colour", &[("value", &s)]));
@@ -619,15 +619,15 @@ fn decoration_details(app: &mut FigApp, ui: &mut Ui, styles: &[TextStyle], apply
 /// axis (values the style name implies show until changed; "Mixed" when the shown styles differ).
 /// The canvas previews a hovered instance and a dragged slider or field live; letting go commits
 /// one undo step, Escape cancels.
-fn variable_axes(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], styles: &[TextStyle], face: &figcraft_text::Face) {
+fn variable_axes(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], styles: &[TextStyle], face: &figz_text::Face) {
     let t = Tokens::get(ui.ctx());
-    let range = figcraft_engine::textedit::selected_range(&app.session);
+    let range = figz_engine::textedit::selected_range(&app.session);
     widgets::label(ui, &face.family, t.text_secondary);
     named_instances(app, ui, ids, range, styles, face);
     // Each style's axis values; a style drawn by another face (e.g. a separate italic file) is mixed.
     let per_style: Vec<Option<Vec<f64>>> = styles
         .iter()
-        .map(|s| figcraft_text::find_face(&s.font_family, &s.font_style).filter(|f| f.id == face.id).map(|_| face.axis_values(s)))
+        .map(|s| figz_text::find_face(&s.font_family, &s.font_style).filter(|f| f.id == face.id).map(|_| face.axis_values(s)))
         .collect();
     let w = ui.available_width();
     let field_w = 52.0;
@@ -721,7 +721,7 @@ fn named_instances(
     ids: &[NodeId],
     range: Option<(NodeId, usize, usize)>,
     styles: &[TextStyle],
-    face: &figcraft_text::Face,
+    face: &figz_text::Face,
 ) {
     if face.instances.is_empty() {
         return;
@@ -760,14 +760,14 @@ fn named_instances(
 }
 
 /// Axis values snap to whole numbers on wide axes (weight, width…) and tenths on narrow ones.
-fn round_axis(axis: &figcraft_text::Axis, v: f64) -> f64 {
+fn round_axis(axis: &figz_text::Axis, v: f64) -> f64 {
     if axis.max - axis.min > 20.0 { v.round() } else { (v * 10.0).round() / 10.0 }
 }
 
 /// A horizontal slider over an axis's range with a tick at its default. `value` None = mixed.
 /// Returns the new value (None = double-click: back to the style's value) and whether the
 /// gesture ended.
-fn axis_slider(ui: &mut Ui, id: Id, axis: &figcraft_text::Axis, value: Option<f64>, width: f32) -> Option<(Option<f64>, bool)> {
+fn axis_slider(ui: &mut Ui, id: Id, axis: &figz_text::Axis, value: Option<f64>, width: f32) -> Option<(Option<f64>, bool)> {
     let t = Tokens::get(ui.ctx());
     let (rect, _) = ui.allocate_exact_size(vec2(width, FIELD_H), Sense::hover());
     let resp = ui.interact(rect, id, Sense::click_and_drag());
@@ -1028,7 +1028,7 @@ pub(crate) fn parse_letter_spacing(s: &str, cur: Option<LetterSpacing>) -> Optio
 
 // ---- Font picker ----
 
-const RECENT_KEY: &str = "figcraft_recent_fonts";
+const RECENT_KEY: &str = "figz_recent_fonts";
 const ROW: f32 = 26.0;
 
 fn recent_families(ctx: &egui::Context) -> Vec<String> {
@@ -1063,7 +1063,7 @@ pub(crate) fn font_picker(ui: &mut Ui, current: Option<&str>, just_opened: bool)
     }
     ui.data_mut(|d| d.insert_temp(q_id, q.clone()));
     let ql = q.trim().to_lowercase();
-    let all = figcraft_text::family_names();
+    let all = figz_text::family_names();
     let matches: Vec<String> = all.iter().filter(|f| ql.is_empty() || f.to_lowercase().contains(&ql)).cloned().collect();
     if search.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
         return matches.into_iter().next();
@@ -1155,7 +1155,7 @@ mod tests {
 
     #[test]
     fn axis_values_round_by_axis_width() {
-        let axis = |min: f64, max: f64| figcraft_text::Axis { tag: "test".into(), name: "Test".into(), min, default: min, max, hidden: false };
+        let axis = |min: f64, max: f64| figz_text::Axis { tag: "test".into(), name: "Test".into(), min, default: min, max, hidden: false };
         assert_eq!(round_axis(&axis(100.0, 900.0), 456.6), 457.0);
         assert_eq!(round_axis(&axis(-10.0, 0.0), -4.26), -4.3);
         assert_eq!(round_axis(&axis(0.0, 1.0), 0.04), 0.0);

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
-use figcraft_geom::BezPath;
+use figz_geom::BezPath;
 use skrifa::instance::{LocationRef, NormalizedCoord, Size};
 use skrifa::outline::{DrawSettings, OutlinePen};
 use skrifa::raw::{FileRef, TableProvider};
@@ -143,7 +143,7 @@ impl Face {
         let strike = m.strikeout.map(|d| f64::from(d.offset)).unwrap_or(ascent * 0.3);
         let weight = {
             let w = attrs.weight.value();
-            if w.is_finite() && w > 0.0 { w.round() as u16 } else { figcraft_doc::style_weight(&style) }
+            if w.is_finite() && w > 0.0 { w.round() as u16 } else { figz_doc::style_weight(&style) }
         };
         Some(Face {
             id: NEXT_FACE.fetch_add(1, Ordering::Relaxed),
@@ -264,7 +264,7 @@ impl Face {
     /// static fonts). Starts from the named instance matching the style name (else the weight and
     /// italic the name implies, with an optical size that follows the font size), then applies the
     /// style's custom values; every value is clamped to its axis.
-    pub fn axis_values(&self, style: &figcraft_doc::TextStyle) -> Vec<f64> {
+    pub fn axis_values(&self, style: &figz_doc::TextStyle) -> Vec<f64> {
         if self.axes.is_empty() {
             return Vec::new();
         }
@@ -278,7 +278,7 @@ impl Face {
             let italic = style.font_style.to_ascii_lowercase().contains("italic") && !self.italic;
             for (slot, a) in v.iter_mut().zip(&self.axes) {
                 match a.tag.as_str() {
-                    "wght" if !own_style => *slot = f64::from(figcraft_doc::style_weight(&style.font_style)),
+                    "wght" if !own_style => *slot = f64::from(figz_doc::style_weight(&style.font_style)),
                     "ital" if italic => *slot = 1.0,
                     "slnt" if italic => *slot = a.min,
                     "opsz" if style.font_size.is_finite() => *slot = style.font_size,
@@ -324,7 +324,7 @@ fn norm_style(s: &str) -> String {
 /// A style name's weight before its file is read: the usual names, and Hiragino's "W3" (300).
 fn pending_weight(style: &str) -> i32 {
     let w = norm_style(style).strip_prefix('w').and_then(|n| n.parse::<i32>().ok()).filter(|n| (0..=9).contains(n));
-    w.map_or(i32::from(figcraft_doc::style_weight(style)), |n| n * 100)
+    w.map_or(i32::from(figz_doc::style_weight(style)), |n| n * 100)
 }
 
 /// The axes (user-space ranges) and named instances of a variable font.
@@ -333,7 +333,7 @@ fn variation_info(f: &skrifa::FontRef) -> (Vec<Axis>, Vec<NamedInstance>) {
     let axes: Vec<Axis> = all
         .iter()
         .filter_map(|a| {
-            let tag = String::from_utf8(a.tag().to_be_bytes().to_vec()).ok().filter(|t| figcraft_doc::valid_axis_tag(t))?;
+            let tag = String::from_utf8(a.tag().to_be_bytes().to_vec()).ok().filter(|t| figz_doc::valid_axis_tag(t))?;
             let (min, default, max) = (f64::from(a.min_value()), f64::from(a.default_value()), f64::from(a.max_value()));
             if !(min.is_finite() && default.is_finite() && max.is_finite()) || min > max {
                 return None;
@@ -570,7 +570,7 @@ impl FontDb {
         if let Some(f) = faces.iter().find(|f| norm_style(&f.style) == want).or_else(|| faces.iter().find(|f| f.instance(style).is_some())) {
             return Some((*f).clone());
         }
-        let want_w = i32::from(figcraft_doc::style_weight(style));
+        let want_w = i32::from(figz_doc::style_weight(style));
         let want_i = style.to_lowercase().contains("italic");
         // A variable face covers its whole weight range, and an italic or slant axis can slant it.
         let cost = |f: &Arc<Face>| {
@@ -778,7 +778,7 @@ pub fn family_styles(family: &str) -> Vec<String> {
 }
 
 /// Scan system fonts into the global db (desktop; a no-op on the web, or with
-/// `FIGCRAFT_NO_SYSTEM_FONTS` set). Runs once per process: a concurrent caller waits for that scan.
+/// `FIGZ_NO_SYSTEM_FONTS` set). Runs once per process: a concurrent caller waits for that scan.
 /// The directory walk runs without holding the database lock; results are merged in one short write.
 pub fn scan_system_fonts() {
     SCANNED.get_or_init(|| {
@@ -802,10 +802,10 @@ pub fn scan_system_fonts() {
     });
 }
 
-/// `FIGCRAFT_NO_SYSTEM_FONTS` is set (and not `0`): renders use only the embedded fonts.
+/// `FIGZ_NO_SYSTEM_FONTS` is set (and not `0`): renders use only the embedded fonts.
 #[cfg(not(target_arch = "wasm32"))]
 fn system_fonts_opted_out() -> bool {
-    std::env::var_os("FIGCRAFT_NO_SYSTEM_FONTS").is_some_and(|v| !v.is_empty() && v != "0")
+    std::env::var_os("FIGZ_NO_SYSTEM_FONTS").is_some_and(|v| !v.is_empty() && v != "0")
 }
 
 /// Index the system fonts the first time the font database is used (headless apps: a run that

@@ -1,0 +1,14 @@
+# Runs figz-backup.service every night (see that file).
+#   sudo systemctl enable --now figz-backup.timer
+#   systemctl list-timers figz-backup.timer
+
+[Unit]
+Description=Nightly backup of figz-server's data directory
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

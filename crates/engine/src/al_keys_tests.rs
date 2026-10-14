@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use crate::Session;
 use crate::params::id_of;
-use figcraft_doc::NodeId;
+use figz_doc::NodeId;
 
 fn id(v: Value) -> NodeId {
     id_of(&v["id"]).unwrap()
@@ -115,7 +115,7 @@ fn grid_arrows_move_between_cells() {
     assert_eq!(kids(&s, g), vec![b, c, a, d], "Down: the cell below (A lands at column 0, row 1)");
     let cell = |s: &Session, n: NodeId| {
         let doc = s.doc().unwrap();
-        let (cells, _) = figcraft_layout::grid_place(doc, doc.node(g).unwrap().layout.as_ref().unwrap(), &kids(s, g));
+        let (cells, _) = figz_layout::grid_place(doc, doc.node(g).unwrap().layout.as_ref().unwrap(), &kids(s, g));
         cells.iter().find(|x| x.id == n).map(|x| (x.column, x.row)).unwrap()
     };
     assert_eq!(cell(&s, a), (0, 1));

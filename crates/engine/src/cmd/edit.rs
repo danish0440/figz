@@ -2,8 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use figcraft_doc::*;
-use figcraft_geom::Affine;
+use figz_doc::*;
+use figz_geom::Affine;
 use serde_json::{Value, json};
 
 use super::{CommandSpec, ok};
@@ -468,7 +468,7 @@ pub fn copy_to_clipboard(s: &mut Session, ids: &[NodeId]) -> Result<()> {
         }
         for n in &sub {
             for p in n.fills.iter().chain(n.strokes.iter()) {
-                if let figcraft_color::PaintKind::Image(img) = &p.kind
+                if let figz_color::PaintKind::Image(img) = &p.kind
                     && let Some(d) = doc.images.get(&img.image)
                 {
                     images.insert(img.image.clone(), d.clone());
@@ -562,7 +562,7 @@ fn paste(s: &mut Session, p: &Value) -> Result<Value> {
                 (Some(t), Some(b)) => {
                     let tb = doc.world_bounds(t);
                     match tb {
-                        Some(tb) if tb.contains(b.origin()) && tb.contains(figcraft_geom::Point::new(b.x1, b.y1)) => None,
+                        Some(tb) if tb.contains(b.origin()) && tb.contains(figz_geom::Point::new(b.x1, b.y1)) => None,
                         Some(tb) => Some((tb.center().x - b.width() / 2.0, tb.center().y - b.height() / 2.0)),
                         None => None,
                     }
@@ -571,7 +571,7 @@ fn paste(s: &mut Session, p: &Value) -> Result<Value> {
                     // Off-screen originals paste at the viewport centre.
                     let v = &s.ds()?.view;
                     let (ox, oy) = v.origin();
-                    let vr = figcraft_geom::Rect::new(ox, oy, ox + v.vw / v.zoom.max(1e-9), oy + v.vh / v.zoom.max(1e-9));
+                    let vr = figz_geom::Rect::new(ox, oy, ox + v.vw / v.zoom.max(1e-9), oy + v.vh / v.zoom.max(1e-9));
                     if vr.intersect(b).is_zero_area() { Some((v.cx - b.width() / 2.0, v.cy - b.height() / 2.0)) } else { None }
                 }
                 _ => None,
@@ -672,7 +672,7 @@ fn layers_at(s: &mut Session, p: &Value) -> Result<Value> {
     let zoom = s.ds()?.view.zoom.max(1e-6);
     let sel = s.selection();
     let result = crate::booleans::result_outline(doc, &sel);
-    let layers: Vec<Value> = figcraft_doc::geometry::layers_at(doc, s.page()?, figcraft_geom::Point::new(x, y), 2.0 / zoom, Some(&result))
+    let layers: Vec<Value> = figz_doc::geometry::layers_at(doc, s.page()?, figz_geom::Point::new(x, y), 2.0 / zoom, Some(&result))
         .into_iter()
         .filter_map(|(id, depth)| doc.node(id).map(|n| json!({"id": id, "name": n.name, "type": n.kind.type_name(), "depth": depth})))
         .collect();
@@ -713,8 +713,8 @@ fn select_area(s: &mut Session, p: &Value) -> Result<Value> {
     if ![x, y, w, h].iter().all(|v| v.is_finite() && v.abs() < 1e9) {
         return Err(bad(cmd, "the box is out of range"));
     }
-    let start = figcraft_geom::Point::new(x, y);
-    let r = figcraft_geom::Rect::from_points(start, figcraft_geom::Point::new(x + w, y + h));
+    let start = figz_geom::Point::new(x, y);
+    let r = figz_geom::Rect::from_points(start, figz_geom::Point::new(x + w, y + h));
     let add = boolean(p, "add") == Some(true);
     let base = if add { s.selection() } else { Vec::new() };
     let within = s.marquee_within(start)?;
@@ -1009,7 +1009,7 @@ fn set(s: &mut Session, p: &Value) -> Result<Value> {
     let ds = s.ds()?;
     let pivot =
         ds.moved_origin().filter(|_| props.contains_key("rotation") && !props.contains_key("x") && !props.contains_key("y") && ds.selection == ids);
-    let pinned: Vec<(NodeId, figcraft_geom::Point)> = match pivot {
+    let pinned: Vec<(NodeId, figz_geom::Point)> = match pivot {
         Some(o) => roots(&ds.doc, &ids)
             .into_iter()
             .map(|i| (i, ds.doc.world_transform(i)))
@@ -1056,7 +1056,7 @@ fn stroke_brush(s: &mut Session, p: &Value) -> Result<Value> {
     for i in ids {
         let n = doc.get_mut(i)?;
         if brush.is_some() && n.strokes.is_empty() {
-            n.strokes.push(figcraft_color::Paint::solid(figcraft_color::Color::BLACK));
+            n.strokes.push(figz_color::Paint::solid(figz_color::Color::BLACK));
         }
         n.stroke.brush = brush.clone();
     }
@@ -1092,9 +1092,9 @@ fn paint_list(s: &mut Session, p: &Value, fills: bool, add: bool) -> Result<Valu
         if add {
             let paint = match get(p, "paint").or_else(|| get(p, "color")) {
                 Some(v) => paint_of(v).ok_or_else(|| bad(cmd, "invalid paint"))?,
-                None if fills && frameish => figcraft_color::Paint::solid(figcraft_color::Color::WHITE),
-                None if fills => figcraft_color::Paint::solid(figcraft_color::Color::DEFAULT_SHAPE),
-                None => figcraft_color::Paint::solid(figcraft_color::Color::BLACK),
+                None if fills && frameish => figz_color::Paint::solid(figz_color::Color::WHITE),
+                None if fills => figz_color::Paint::solid(figz_color::Color::DEFAULT_SHAPE),
+                None => figz_color::Paint::solid(figz_color::Color::BLACK),
             };
             list.push(paint);
         } else {
@@ -1121,7 +1121,7 @@ fn paint_set(s: &mut Session, p: &Value, fills: bool) -> Result<Value> {
         let list = if fills { &mut n.fills } else { &mut n.strokes };
         let at = idx.unwrap_or(list.len().saturating_sub(1));
         if list.is_empty() {
-            list.push(figcraft_color::Paint::solid(if fills { figcraft_color::Color::DEFAULT_SHAPE } else { figcraft_color::Color::BLACK }));
+            list.push(figz_color::Paint::solid(if fills { figz_color::Color::DEFAULT_SHAPE } else { figz_color::Color::BLACK }));
         }
         let Some(slot) = list.get_mut(at) else { return Err(bad(cmd, format!("no paint at index {at}"))) };
         let old = slot.clone();
@@ -1129,7 +1129,7 @@ fn paint_set(s: &mut Session, p: &Value, fills: bool) -> Result<Value> {
             *slot = np.clone();
         }
         if let Some(c) = col {
-            slot.kind = figcraft_color::PaintKind::Solid { color: c.with_alpha(1.0) };
+            slot.kind = figz_color::PaintKind::Solid { color: c.with_alpha(1.0) };
             if c.a < 1.0 {
                 slot.opacity = c.a;
             }
@@ -1163,15 +1163,15 @@ fn pattern_fill(s: &mut Session, p: &Value) -> Result<Value> {
     if req_targets(CMD, s, p)?.iter().any(|t| doc.is_ancestor(*t, src)) {
         return Err(bad(CMD, "a layer can't be filled with itself or a layer inside it"));
     }
-    let mut pt = figcraft_color::PatternPaint::new(src.0);
+    let mut pt = figz_color::PatternPaint::new(src.0);
     pt.tile = parse(CMD, p, "tile")?.unwrap_or_default();
     pt.align = parse(CMD, p, "align")?.unwrap_or_default();
     pt.spacing = parse(CMD, p, "spacing")?.unwrap_or_default();
-    let (lo, hi) = figcraft_color::PatternPaint::SCALE_RANGE;
+    let (lo, hi) = figz_color::PatternPaint::SCALE_RANGE;
     pt.scale = num(p, "scale").filter(|v| v.is_finite()).unwrap_or(1.0).clamp(lo, hi);
     let mut q = if p.is_object() { p.clone() } else { json!({}) };
     q["paint"] =
-        serde_json::to_value(figcraft_color::Paint { kind: figcraft_color::PaintKind::Pattern(pt), ..figcraft_color::Paint::pattern(src.0) })
+        serde_json::to_value(figz_color::Paint { kind: figz_color::PaintKind::Pattern(pt), ..figz_color::Paint::pattern(src.0) })
             .map_err(|e| bad(CMD, e.to_string()))?;
     paint_set(s, &q, true)
 }

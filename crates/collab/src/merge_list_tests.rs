@@ -1,8 +1,8 @@
 //! Fills, strokes and effects merge item by item: different items changed on each side merge,
 //! the same item changed both ways conflicts.
 
-use figcraft_color::{Color, Paint};
-use figcraft_doc::{Document, Effect, NodeId, NodeKind};
+use figz_color::{Color, Paint};
+use figz_doc::{Document, Effect, NodeId, NodeKind};
 use serde_json::{Value, json};
 
 use crate::merge::{Key, Side, merge_items, plan};
@@ -104,7 +104,7 @@ fn other_lists_still_conflict_as_a_whole() {
     // Docs silent: lists other than fills, strokes and effects (export settings here) still
     // conflict whole when both sides change them.
     let (mut base, _, _, r) = files();
-    let export = |suffix: &str| figcraft_doc::ExportSetting { suffix: suffix.into(), ..Default::default() };
+    let export = |suffix: &str| figz_doc::ExportSetting { suffix: suffix.into(), ..Default::default() };
     base.get_mut(r).unwrap().exports = vec![export("@1"), export("@2")];
     let (mut branch, mut main) = (base.clone(), base.clone());
     branch.set_client_id(base.highest_id_space() + 1);

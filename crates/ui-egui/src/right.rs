@@ -1,9 +1,9 @@
 //! The right panel: Design, Prototype and Inspect tabs.
 
 use egui::{Align2, Color32, CornerRadius, Id, Pos2, Rect, Sense, Stroke, Ui, pos2, vec2};
-use figcraft_color::{BlendMode, Paint, PaintKind};
-use figcraft_doc::*;
-use figcraft_engine::cmd::lists::moved_index;
+use figz_color::{BlendMode, Paint, PaintKind};
+use figz_doc::*;
+use figz_engine::cmd::lists::moved_index;
 use serde_json::{Value, json};
 
 use crate::a11y::{self, Tip};
@@ -192,14 +192,14 @@ pub fn right_panel(app: &mut FigApp, ui: &mut Ui) {
     ui.painter().line_segment([tabs.left_bottom(), tabs.right_bottom()], Stroke::new(1.0, t.border));
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(8.0, 0.0);
-        if app.session.tool.tool == figcraft_engine::ToolId::Comment {
+        if app.session.tool.tool == figz_engine::ToolId::Comment {
             crate::comments::panel(app, ui);
             ui.add_space(80.0);
             return;
         }
         match app.ui.right_tab {
             // The Frame tool shows the frame presets.
-            RightTab::Design if app.session.tool.tool == figcraft_engine::ToolId::Frame => crate::frame_presets::panel(app, ui),
+            RightTab::Design if app.session.tool.tool == figz_engine::ToolId::Frame => crate::frame_presets::panel(app, ui),
             RightTab::Design => design(app, ui),
             RightTab::Prototype => crate::proto_panel::prototype(app, ui),
             RightTab::Inspect => inspect(app, ui),
@@ -350,7 +350,7 @@ fn design(app: &mut FigApp, ui: &mut Ui) {
         Some(ve) => crate::vector_panel::points(app, ui, &doc, &ve),
         None => {
             crate::section_panel::section(app, ui, &doc, &sel);
-            if app.session.tool.tool == figcraft_engine::ToolId::Scale {
+            if app.session.tool.tool == figz_engine::ToolId::Scale {
                 crate::scale_panel::section(app, ui, &doc, &sel);
                 widgets::separator(ui);
             }
@@ -392,7 +392,7 @@ fn page_section(app: &mut FigApp, ui: &mut Ui, doc: &Document) {
     let Ok(page) = app.session.page() else { return };
     let bg = match doc.node(page).map(|n| &n.kind) {
         Some(NodeKind::Page { background, .. }) => *background,
-        _ => figcraft_color::Color::DEFAULT_PAGE,
+        _ => figz_color::Color::DEFAULT_PAGE,
     };
     widgets::section_header(ui, tr("Page"), &[], false);
     let mut open_picker = false;
@@ -411,7 +411,7 @@ fn page_section(app: &mut FigApp, ui: &mut Ui, doc: &Document) {
         app.ui.picker = Some(crate::colorpicker::PickerTarget::PageBackground);
     }
     if let Some(h) = new_hex
-        && let Some(c) = figcraft_color::Color::from_hex(&h)
+        && let Some(c) = figz_color::Color::from_hex(&h)
     {
         app.run("page.setBackground", json!({"color": c.to_css_hex()}));
     }
@@ -420,7 +420,7 @@ fn page_section(app: &mut FigApp, ui: &mut Ui, doc: &Document) {
     row(ui, 32.0, |ui| {
         let resp = widgets::dropdown(ui, doc.color_profile.label(), 140.0, None);
         menu_popup(&resp).show(|ui| {
-            for p in figcraft_color::ColorProfile::ALL {
+            for p in figz_color::ColorProfile::ALL {
                 if menu_item(ui, p.label(), "") {
                     if p != doc.color_profile {
                         app.ui.color_profile = Some(p);
@@ -432,7 +432,7 @@ fn page_section(app: &mut FigApp, ui: &mut Ui, doc: &Document) {
     });
     widgets::separator(ui);
     // Local variables & styles.
-    let vars = doc.variables.variables.iter().filter(|v| !figcraft_engine::library::is_remote_variable(doc, &v.id)).count();
+    let vars = doc.variables.variables.iter().filter(|v| !figz_engine::library::is_remote_variable(doc, &v.id)).count();
     widgets::section_header(ui, tr("Local variables"), &[], vars == 0);
     row(ui, 32.0, |ui| {
         let r = widgets::dropdown(ui, &trf("Open variables ({count})", &[("count", &vars)]), 200.0, Some(Icon::Styles));
@@ -443,7 +443,7 @@ fn page_section(app: &mut FigApp, ui: &mut Ui, doc: &Document) {
         }
     });
     widgets::separator(ui);
-    widgets::section_header(ui, tr("Local styles"), &[], figcraft_engine::library::local_styles(doc).next().is_none());
+    widgets::section_header(ui, tr("Local styles"), &[], figz_engine::library::local_styles(doc).next().is_none());
     crate::style_picker::local_styles(app, ui, doc);
     widgets::separator(ui);
     crate::export_panel::page_section(app, ui, doc, page);
@@ -505,7 +505,7 @@ fn header(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
                 kind_items(app, ui, true);
                 ui.separator();
                 let mut cat = "";
-                for (c, name, pw, ph) in figcraft_engine::cmd::create::FRAME_PRESETS {
+                for (c, name, pw, ph) in figz_engine::cmd::create::FRAME_PRESETS {
                     if *c != cat {
                         cat = c;
                         ui.label(egui::RichText::new(tr(c)).font(semibold(11.0)).color(t.text_secondary));
@@ -526,7 +526,7 @@ fn header(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
         (Icon::Union, tr("Boolean groups"), "bool.union"),
     ];
     // Layers in boolean groups, or one boolean group: the operation they use (checked in the menu).
-    let current = figcraft_engine::booleans::shown_op(doc, sel);
+    let current = figz_engine::booleans::shown_op(doc, sel);
     for (icon, label, cmd) in actions.into_iter().rev() {
         let br = Rect::from_min_size(pos2(x - 24.0, r.center().y - 12.0), vec2(24.0, 24.0));
         let tip = if cmd == "bool.union" { label } else { crate::shortcuts::tip(label, cmd) };
@@ -576,7 +576,7 @@ fn header(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
 fn position(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
     widgets::section_header(ui, tr("Position"), &[], false);
     // Layers inside an instance take their place and constraints from the main component.
-    let nested = sel.iter().any(|i| figcraft_engine::components::inside_instance(doc, *i));
+    let nested = sel.iter().any(|i| figz_engine::components::inside_instance(doc, *i));
     ui.add_enabled_ui(!nested, |ui| position_fields(app, ui, doc, sel))
         .response
         .on_disabled_hover_text(tr("Layers in an instance take their position from the main component"));
@@ -625,7 +625,7 @@ fn position_fields(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]
     // What each field shows of a layer (a relative edit of mixed values starts from it).
     let x_of = |n: &Node| (doc.frame_relative(n.id).as_coeffs()[4] * 100.0).round() / 100.0;
     let y_of = |n: &Node| (doc.frame_relative(n.id).as_coeffs()[5] * 100.0).round() / 100.0;
-    let rot_of = |n: &Node| (figcraft_geom::rotation_degrees(n.transform) * 100.0).round() / 100.0;
+    let rot_of = |n: &Node| (figz_geom::rotation_degrees(n.transform) * 100.0).round() / 100.0;
     let (x, y, rot) = (common(doc, sel, x_of), common(doc, sel, y_of), common(doc, sel, rot_of));
     let parent_al = sel.iter().all(|i| doc.node(*i).and_then(|n| n.parent).and_then(|p| doc.node(p)).is_some_and(|p| p.layout.is_some()));
     let absolute = common(doc, sel, |n| n.child_layout.absolute);
@@ -1054,7 +1054,7 @@ fn range_fill(app: &mut FigApp, ui: &mut Ui, doc: &Document, id: NodeId, start: 
                     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(text_r));
                     if let Some(h) =
                         widgets::text_field_inline(&mut child, Id::new("range_hex"), &c.to_hex(), text_r.shrink2(vec2(0.0, 4.0)), regular(11.0))
-                        && let Some(nc) = figcraft_color::Color::from_hex(&h)
+                        && let Some(nc) = figz_color::Color::from_hex(&h)
                     {
                         app.run("text.style", json!({"id": id, "start": start, "end": end, "textFills": [nc.to_css_hex()]}));
                     }
@@ -1078,7 +1078,7 @@ fn range_fill(app: &mut FigApp, ui: &mut Ui, doc: &Document, id: NodeId, start: 
 
 fn paints(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId], fills: bool) {
     if fills
-        && let Some((id, a, b)) = figcraft_engine::textedit::selected_range(&app.session)
+        && let Some((id, a, b)) = figz_engine::textedit::selected_range(&app.session)
         && a < b
         && sel.contains(&id)
     {
@@ -1191,7 +1191,7 @@ fn paints(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId], fills: 
         // each side binds to a number variable on its own.
         if let Some(sides) = common(doc, sel, |n| n.stroke.sides).flatten() {
             let col = widgets::col_width(ui.available_width());
-            let fields = ["T", "R", "B", "L"].into_iter().zip(figcraft_engine::cmd::props::STROKE_SIDES);
+            let fields = ["T", "R", "B", "L"].into_iter().zip(figz_engine::cmd::props::STROKE_SIDES);
             for first in [0, 2] {
                 row(ui, 32.0, |ui| {
                     for (k, (label, field)) in fields.clone().enumerate().skip(first).take(2) {
@@ -1278,7 +1278,7 @@ fn width_profile_row(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], profile: Opt
             && let Some(p) = custom
         {
             let pts: Vec<Value> =
-                p.points.iter().rev().map(|q| figcraft_engine::cmd::props::width_point_json(&WidthPoint { t: 1.0 - q.t, ..*q })).collect();
+                p.points.iter().rev().map(|q| figz_engine::cmd::props::width_point_json(&WidthPoint { t: 1.0 - q.t, ..*q })).collect();
             app.run("stroke.widthProfile", json!({"ids": ids, "points": pts}));
         }
     });
@@ -1286,14 +1286,14 @@ fn width_profile_row(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], profile: Opt
 
 /// A brush drawn along a short line across `rect`, as outlines (egui fills only convex shapes).
 pub(crate) fn brush_art(painter: &egui::Painter, rect: Rect, preset: &str, col: Color32) {
-    use figcraft_geom::kurbo::{self, PathEl};
-    let mut line = figcraft_geom::BezPath::new();
+    use figz_geom::kurbo::{self, PathEl};
+    let mut line = figz_geom::BezPath::new();
     line.move_to((0.0, 0.0));
     line.line_to((f64::from(rect.width()), 0.0));
     let brush = Brush::new(preset);
     let props = StrokeProps { weight: f64::from(rect.height()), align: StrokeAlign::Center, brush: Some(brush.clone()), ..Default::default() };
-    let Some(out) = figcraft_pathops::brush::outline(&line, props.weight, &props, &brush) else { return };
-    for sub in figcraft_geom::split_subpaths(&out) {
+    let Some(out) = figz_pathops::brush::outline(&line, props.weight, &props, &brush) else { return };
+    for sub in figz_geom::split_subpaths(&out) {
         let mut pts = Vec::new();
         kurbo::flatten(sub.iter(), 0.25, |el| {
             if let PathEl::MoveTo(p) | PathEl::LineTo(p) = el {
@@ -1306,7 +1306,7 @@ pub(crate) fn brush_art(painter: &egui::Painter, rect: Rect, preset: &str, col: 
 
 /// Stroke settings ▸ Brush: a plain stroke, a stretch brush or a scatter brush, each with its look.
 fn brush_row(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], brush: Option<Option<Brush>>, width: f32) {
-    use figcraft_pathops::brush::{PRESETS, preset};
+    use figz_pathops::brush::{PRESETS, preset};
     let t = Tokens::get(ui.ctx());
     widgets::sublabels(ui, tr("Brush"), None);
     row(ui, 32.0, |ui| {
@@ -1348,7 +1348,7 @@ fn brush_row(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], brush: Option<Option
     });
     // A scatter brush's spacing and jitter.
     let Some(Some(b)) =
-        brush.filter(|b| b.as_ref().and_then(|b| preset(&b.preset)).is_some_and(|p| p.kind == figcraft_pathops::brush::BrushKind::Scatter))
+        brush.filter(|b| b.as_ref().and_then(|b| preset(&b.preset)).is_some_and(|p| p.kind == figz_pathops::brush::BrushKind::Scatter))
     else {
         return;
     };
@@ -1538,7 +1538,7 @@ fn paint_row(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, p: &Paint,
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(text_r));
         // The variable bound to this paint's colour (its key on the layers: `fill` or `fills/<i>/color`).
         let bound = app.session.doc().ok().and_then(|d| {
-            let key = ids.first().and_then(|id| d.node(*id)).and_then(|n| figcraft_engine::cmd::lists::paint_binding_key(n, fills, i))?;
+            let key = ids.first().and_then(|id| d.node(*id)).and_then(|n| figz_engine::cmd::lists::paint_binding_key(n, fills, i))?;
             Some((key.to_string(), crate::variable_ui::bound_name(d, &ids, key)?))
         });
         match &p.kind {
@@ -1566,7 +1566,7 @@ fn paint_row(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, p: &Paint,
             PaintKind::Solid { color } => {
                 if let Some(h) =
                     widgets::text_field_inline(&mut child, Id::new(("hex", fills, i)), &color.to_hex(), text_r.shrink2(vec2(0.0, 4.0)), regular(11.0))
-                    && let Some(c) = figcraft_color::Color::from_hex(&h)
+                    && let Some(c) = figz_color::Color::from_hex(&h)
                 {
                     app.run(cmd, json!({"ids": ids, "index": i, "color": c.to_css_hex()}));
                 }
@@ -1705,7 +1705,7 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
         None => {}
     };
     // A new colour for the effect (`secondary`: a duo noise's second colour).
-    let edit_color = |app: &mut FigApp, secondary: bool, c: figcraft_color::Color, scrub: Option<bool>| {
+    let edit_color = |app: &mut FigApp, secondary: bool, c: figz_color::Color, scrub: Option<bool>| {
         let mut e2 = e.clone();
         if let Some(slot) = e2.color_mut(secondary) {
             *slot = c;
@@ -1881,7 +1881,7 @@ fn effect_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &
 }
 
 /// Applies a new colour to an effect: (app, secondary colour, colour, scrubbing: `Some(done)`).
-type ColorEdit<'a> = dyn Fn(&mut FigApp, bool, figcraft_color::Color, Option<bool>) + 'a;
+type ColorEdit<'a> = dyn Fn(&mut FigApp, bool, figz_color::Color, Option<bool>) + 'a;
 
 /// `e` with `f` applied to its kind.
 fn tweaked(e: &Effect, f: impl FnOnce(&mut EffectKind)) -> Effect {
@@ -1898,7 +1898,7 @@ fn fx_color(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], i: usize, e: &Effect,
         app.ui.picker = Some(crate::colorpicker::PickerTarget::Effect { ids: ids.to_vec(), index: i, secondary });
     }
     if let Some(h) = widgets::text_field(ui, Id::new(("fx_c", i, secondary)), &c.to_hex(), 80.0, "")
-        && let Some(nc) = figcraft_color::Color::from_hex(&h)
+        && let Some(nc) = figz_color::Color::from_hex(&h)
     {
         edit(app, secondary, nc.with_alpha(c.a), None);
     }
@@ -2080,7 +2080,7 @@ fn grid_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], list: &[LayoutGr
         let (sw, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
         widgets::paint_swatch(ui.painter(), sw, &Paint::solid(g.color));
         if let Some(h) = widgets::text_field(ui, Id::new(("grid_hex", i)), &g.color.to_hex(), 80.0, "")
-            && let Some(c) = figcraft_color::Color::from_hex(&h)
+            && let Some(c) = figz_color::Color::from_hex(&h)
         {
             app.run("node.set", set(&|x| x.color = c.with_alpha(x.color.a)));
         }
@@ -2091,7 +2091,7 @@ fn grid_settings(app: &mut FigApp, ui: &mut Ui, ids: &[NodeId], list: &[LayoutGr
 
 /// One group of inspected properties: label, value (with a swatch for colours) and the style or
 /// variable it comes from. Clicking a row copies its value.
-pub(crate) fn inspect_section(app: &mut FigApp, ui: &mut Ui, s: &figcraft_engine::devinspect::Section) {
+pub(crate) fn inspect_section(app: &mut FigApp, ui: &mut Ui, s: &figz_engine::devinspect::Section) {
     let t = Tokens::get(ui.ctx());
     widgets::separator(ui);
     let (hr, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
@@ -2104,7 +2104,7 @@ pub(crate) fn inspect_section(app: &mut FigApp, ui: &mut Ui, s: &figcraft_engine
 
 /// An inspected property row: label, value (with a swatch for colours) and the style or variable
 /// it comes from as a chip. Clicking it copies the value.
-pub(crate) fn prop_row(app: &mut FigApp, ui: &mut Ui, p: &figcraft_engine::devinspect::Prop) {
+pub(crate) fn prop_row(app: &mut FigApp, ui: &mut Ui, p: &figz_engine::devinspect::Prop) {
     let t = Tokens::get(ui.ctx());
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
     let resp = resp.tip(trf("Copy {value}", &[("value", &p.value)]));
@@ -2137,7 +2137,7 @@ pub(crate) fn prop_row(app: &mut FigApp, ui: &mut Ui, p: &figcraft_engine::devin
         right = chip.min.x - 6.0;
     }
     let mut x = r.min.x + 96.0;
-    if let Some(c) = p.color.as_deref().and_then(figcraft_color::Color::from_hex) {
+    if let Some(c) = p.color.as_deref().and_then(figz_color::Color::from_hex) {
         let sw = Rect::from_min_size(pos2(x, r.center().y - 6.0), vec2(12.0, 12.0));
         widgets::paint_swatch(painter, sw, &Paint::solid(c));
         x += 18.0;
@@ -2152,7 +2152,7 @@ pub(crate) fn prop_row(app: &mut FigApp, ui: &mut Ui, p: &figcraft_engine::devin
 
 /// The selection's assets (layers with export settings, icons, images): click one to export it,
 /// or export them all.
-fn inspect_assets(app: &mut FigApp, ui: &mut Ui, assets: &[figcraft_engine::devinspect::Asset]) {
+fn inspect_assets(app: &mut FigApp, ui: &mut Ui, assets: &[figz_engine::devinspect::Asset]) {
     let t = Tokens::get(ui.ctx());
     widgets::separator(ui);
     let export_all = [(Icon::Export, tr("Export all"))];
@@ -2210,7 +2210,7 @@ fn inspect(app: &mut FigApp, ui: &mut Ui) {
     crate::dev_mode::status(app, ui, &doc, &sel);
     crate::dev_mode::annotations_section(app, ui, &doc, first);
     crate::dev_mode::dev_resources_section(app, ui, &doc, first);
-    use figcraft_engine::devinspect::ColorFormat;
+    use figz_engine::devinspect::ColorFormat;
     let fmt_id = Id::new("inspect_color_format");
     let fmt = ui.data(|d| d.get_temp::<usize>(fmt_id)).and_then(|i| ColorFormat::ALL.get(i).copied()).unwrap_or_default();
     row(ui, 32.0, |ui| {
@@ -2225,11 +2225,11 @@ fn inspect(app: &mut FigApp, ui: &mut Ui) {
             }
         });
     });
-    for s in figcraft_engine::devinspect::properties_with(&doc, first, fmt) {
+    for s in figz_engine::devinspect::properties_with(&doc, first, fmt) {
         inspect_section(app, ui, &s);
     }
-    inspect_assets(app, ui, &figcraft_engine::devinspect::assets(&doc, &sel));
-    use figcraft_engine::codegen::CodeLang;
+    inspect_assets(app, ui, &figz_engine::devinspect::assets(&doc, &sel));
+    use figz_engine::codegen::CodeLang;
     let lang_id = Id::new("inspect_lang");
     let lang = ui.data(|d| d.get_temp::<usize>(lang_id)).and_then(|i| CodeLang::ALL.get(i).copied()).unwrap_or_default();
     // A component tried with other property values: its code replaces the layer's below.
@@ -2263,7 +2263,7 @@ fn inspect(app: &mut FigApp, ui: &mut Ui) {
         }
     });
     let code = played.unwrap_or_else(|| crate::dev_mode::code(app, ui, first, lang));
-    let code = if rem { figcraft_engine::codegen::px_to_rem(&code, 16.0) } else { code };
+    let code = if rem { figz_engine::codegen::px_to_rem(&code, 16.0) } else { code };
     egui::Frame::NONE
         .fill(t.field)
         .corner_radius(CornerRadius::same(6))

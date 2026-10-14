@@ -1,6 +1,6 @@
-# figcraft-server
+# figz-server
 
-`figcraft-server` keeps FigCraft files for a team and serves their live sessions. A file published
+`figz-server` keeps FigZ files for a team and serves their live sessions. A file published
 to it stays there when everyone has left; people open it with a **share link** that lets them
 **edit** it or only **view** it. Edits are kept as a snapshot plus a log of what changed, so a
 restart (or a crash) loses nothing that was confirmed, and apps reconnect where they were. It is
@@ -19,18 +19,18 @@ The protocol and the design behind it are in [`collab-protocol.md`](collab-proto
 ## Running it
 
 ```sh
-cargo build --release -p figcraft-server
-target/release/figcraft-server --listen 0.0.0.0:47900 --data /srv/figcraft
+cargo build --release -p figz-server
+target/release/figz-server --listen 0.0.0.0:47900 --data /srv/figz
 ```
 
-Releases also ship it ready-built for Linux (`figcraft-server-<version>-linux-x86_64.tar.gz` and
+Releases also ship it ready-built for Linux (`figz-server-<version>-linux-x86_64.tar.gz` and
 `-linux-aarch64`). To run it for others on a rented server, see
 [Deploy on a Linux server](#deploy-on-a-linux-server).
 
 - `--listen` defaults to `127.0.0.1:47900`: only this machine can connect. `0.0.0.0:47900` (or an
   interface's address) lets the network in; put it behind a TLS reverse proxy before you expose
   it beyond a trusted network (see below).
-- `--data` is the data directory (default `./figcraft-data`), made if missing. One server at a
+- `--data` is the data directory (default `./figz-data`), made if missing. One server at a
   time uses a directory: a second one refuses to start.
 - Logs go to standard output (`RUST_LOG=debug` for more). They name files, link ids and addresses,
   never keys, tokens or what files contain; what the operator watches for comes as `key=value`
@@ -48,7 +48,7 @@ Releases also ship it ready-built for Linux (`figcraft-server-<version>-linux-x8
 ## Publishing a file
 
 ```sh
-figcraft-server --data /srv/figcraft key
+figz-server --data /srv/figz key
 ```
 
 prints the address to publish to, `ws://<host>:47900/?key=<server key>`. In the desktop app,
@@ -62,7 +62,7 @@ Whoever has the server key can publish files and manage every file's links: give
 people you trust.
 
 On a server [open to the public](#running-a-public-server) the address alone is enough
-(`wss://figcraft.example.com/`): the dialog asks the server first and shows that no key is needed,
+(`wss://figz.example.com/`): the dialog asks the server first and shows that no key is needed,
 who runs it ("Hosted by …" and a link to its terms) and how long unopened files are kept. Publishing
 then also gives an **owner token**, shown once with the links in a **File published** window. The
 app keeps it with your preferences and lists the file under [Home ▸ Online](#your-online-files),
@@ -75,14 +75,14 @@ and the date the server deletes the file unless someone opens it.
 
 **Share ▸ Online ▸ Start sharing** in the app (`collab.share`) is the short way to do all of the
 above on a server open to the public: it publishes the open file to the server in **Preferences ▸
-Server for online sharing** (the FigCraft server unless you put yours there; Reset goes back; empty
+Server for online sharing** (the FigZ server unless you put yours there; Reset goes back; empty
 turns online sharing off), then shows a **join code** such as `K7M-2QX-9TD` in place of the links.
 Someone else types it under **Share ▸ Join with a code** (or on the home screen, or
 `collab.join {code}`) with the same server in their Preferences, and is in the file. The popover
 switches between the code that lets people edit and the one that only lets them view.
 
 The file is its owner's: the app keeps the file's first links and its owner token for itself and
-makes two more links ("Shared (edit)", "Shared (view)" in `figcraft-server links list`) for
+makes two more links ("Shared (edit)", "Shared (view)" in `figz-server links list`) for
 everyone else, with their codes. **Stop sharing** revokes those two: their codes and links stop
 working at once, whoever joined with them is disconnected ("Sharing was stopped…"; they keep the
 copy they have), and the owner stays in the file, which stays on the server, open only to them.
@@ -90,7 +90,7 @@ copy they have), and the owner stays in the file, which stays on the server, ope
 server…** (it asks first) takes the file off the server; closing the tab or quitting changes
 nothing on the server, and the file is still yours afterwards: see
 [Your online files](#your-online-files). To use **your** server for this, set its address
-(`wss://figcraft.example.com/`) in Preferences on every machine that shares or joins; a server
+(`wss://figz.example.com/`) in Preferences on every machine that shares or joins; a server
 that needs its key is reached under **Advanced ▸ Publish to another server…**, or with
 `collab.share {server: "wss://…/?key=…"}`, and gets codes too.
 
@@ -150,7 +150,7 @@ screen lists them under **Online**:
   can't be reached the copy opens as an unsaved document, as before.
 
 The owner token is a password for that one file: it is kept only in the preferences file of your
-user account (`state.json` in FigCraft's settings folder), is never logged, and never appears in
+user account (`state.json` in FigZ's settings folder), is never logged, and never appears in
 what commands return (`collab.files` says `hasOwnerToken: true`). Whoever can read that file can
 manage your online files; a list of at most 200 files is kept (the one opened longest ago makes
 room). The files are the ones published **from this computer**: another computer of yours doesn't
@@ -173,8 +173,8 @@ A [join code](#sharing-with-a-join-code) is the short way in. Share links look l
 app's invite links and join the same way (the same **Join with a code** field takes them, as do
 **File ▸ Join live session…**, opening the link, and `collab.join {link}`):
 
-- `figcraft://join?host=<host:port>&file=<id>&token=<token>` for a plain `ws://` server;
-- `figcraft://join?server=wss://figcraft.example.com/&file=<id>&token=<token>` for a server behind
+- `figz://join?host=<host:port>&file=<id>&token=<token>` for a plain `ws://` server;
+- `figz://join?server=wss://figz.example.com/&file=<id>&token=<token>` for a server behind
   a TLS reverse proxy or under a path;
 - `ws://<host:port>/?file=<id>&token=<token>` or `wss://…` (the same link as a WebSocket URL).
 
@@ -228,22 +228,22 @@ port as everything else; no other service is involved.
   are no publisher accounts, so give it only to people you trust to put code on your team's
   machines. A plugin's author is shown as the publisher typed it in the manifest; nothing verifies
   it.
-- **Publishing.** `figcraft-cli plugin publish FOLDER --server ws://host:47900/` with the key in
-  `FIGCRAFT_SERVER_KEY` (or `?key=` in the address), or `plugin.directory.publish` from the app's
+- **Publishing.** `figz-cli plugin publish FOLDER --server ws://host:47900/` with the key in
+  `FIGZ_SERVER_KEY` (or `?key=` in the address), or `plugin.directory.publish` from the app's
   scripts and MCP. Each version must be newer than the last (`1.0.0` → `1.0.1`); the server keeps
   every version until it is unpublished, and lists the latest.
 - **What the server checks** before keeping a bundle: its size (`max_plugin_mb`), that it decodes
   (an uncompressed format: nothing expands), that its manifest parses and asks for a plugin API this
-  server's FigCraft runs, a version of one to four numbers newer than the one kept, that the module
-  is WebAssembly that compiles and imports only what FigCraft's sandbox provides (it is never run on
+  server's FigZ runs, a version of one to four numbers newer than the one kept, that the module
+  is WebAssembly that compiles and imports only what FigZ's sandbox provides (it is never run on
   the server), and that asset names are plain file names. Then the caps: `max_plugins` versions in
   all and `max_plugins_mb` of bundles.
 - **Downloads** carry the bundle's SHA-256, which the app checks before reading it, and which the
   server checks again when it reads the bundle back from disk (a damaged one is never sent, and is
   logged). Downloads share a budget of about 32 MiB a second, so many at once are turned away with
   "busy" rather than queued in memory.
-- **Moderation** is the operator's: `figcraft-server plugins` lists every plugin and its versions,
-  `figcraft-server plugins remove ID [--version V]` takes a version, or the whole plugin, down (it
+- **Moderation** is the operator's: `figz-server plugins` lists every plugin and its versions,
+  `figz-server plugins remove ID [--version V]` takes a version, or the whole plugin, down (it
   works on a running server too). Installed copies keep working; users can't tell the server to
   remove anything without the key.
 - **Turning it off**: `max_plugins = 0`.
@@ -252,18 +252,18 @@ port as everything else; no other service is involved.
 
 | Command | What it does |
 |---|---|
-| `figcraft-server key [--rotate]` | The address to publish to, with the key; `--rotate` makes a new key (the server must be stopped) |
-| `figcraft-server check` | Check the settings (after editing the `--config` file) |
-| `figcraft-server files [list] [--sort size\|age\|idle]` | The files: id, name, people in it now, size, created, days unused, expiry, reports, and who published it (`key`, or the address of a file published without it); biggest, oldest or longest unused first |
-| `figcraft-server files remove FILE` | Remove a file and its links for good (whoever is in it is disconnected) |
-| `figcraft-server links list FILE` | A file's links: id, access, created, label |
-| `figcraft-server links create FILE --access edit\|view [--label TEXT]` | A new link, printed once |
-| `figcraft-server links revoke FILE LINK` | Revoke a link: it no longer joins, and whoever joined with it is disconnected |
-| `figcraft-server plugins [list]` | The plugin directory: every plugin, its versions, author, access, size and SHA-256 |
-| `figcraft-server plugins remove ID [--version V]` | Unpublish a version of a plugin, or every version |
-| `figcraft-server reports` | What people in files reported to you: when, which file, the link and address they came with, why |
-| `figcraft-server block-ip IP` | Refuse an address (an IPv6 address: its /64) and drop its connections; kept in `blocked.json` |
-| `figcraft-server unblock-ip IP` / `blocked` | Accept it again / list the blocked addresses |
+| `figz-server key [--rotate]` | The address to publish to, with the key; `--rotate` makes a new key (the server must be stopped) |
+| `figz-server check` | Check the settings (after editing the `--config` file) |
+| `figz-server files [list] [--sort size\|age\|idle]` | The files: id, name, people in it now, size, created, days unused, expiry, reports, and who published it (`key`, or the address of a file published without it); biggest, oldest or longest unused first |
+| `figz-server files remove FILE` | Remove a file and its links for good (whoever is in it is disconnected) |
+| `figz-server links list FILE` | A file's links: id, access, created, label |
+| `figz-server links create FILE --access edit\|view [--label TEXT]` | A new link, printed once |
+| `figz-server links revoke FILE LINK` | Revoke a link: it no longer joins, and whoever joined with it is disconnected |
+| `figz-server plugins [list]` | The plugin directory: every plugin, its versions, author, access, size and SHA-256 |
+| `figz-server plugins remove ID [--version V]` | Unpublish a version of a plugin, or every version |
+| `figz-server reports` | What people in files reported to you: when, which file, the link and address they came with, why |
+| `figz-server block-ip IP` | Refuse an address (an IPv6 address: its /64) and drop its connections; kept in `blocked.json` |
+| `figz-server unblock-ip IP` / `blocked` | Accept it again / list the blocked addresses |
 
 Each takes `--data` (or `--config`). When a server is running on the directory, the command asks
 it over the same port with the server key (so a revoked link's users are disconnected at once);
@@ -279,8 +279,8 @@ are errors):
 | Key | Default | Meaning |
 |---|---|---|
 | `listen` | `127.0.0.1:47900` | Where to listen |
-| `data` | `figcraft-data` | The data directory |
-| `public_url` | (the listen address) | How links name the server, when people reach it another way (a reverse proxy: `wss://figcraft.example.com/`) |
+| `data` | `figz-data` | The data directory |
+| `public_url` | (the listen address) | How links name the server, when people reach it another way (a reverse proxy: `wss://figz.example.com/`) |
 | `max_files` | 1000 | Most files kept |
 | `max_file_mb` | 64 (16 when open) | Largest file (its snapshot), in MiB; a welcome carries the whole file, and messages are at most 64 MiB |
 | `max_links` | 100 | Most share links per file |
@@ -320,7 +320,7 @@ behaves as before (blocked addresses, report rates and the limits on
                                a link with a join code its stretched hash and the wrapped token
 <data>/files/<id>/snapshot.bin its state at the last compaction (with a checksum)
 <data>/files/<id>/log.bin      what changed since, one checksummed record per change
-<data>/files/<id>/library.bin  its team library, when one was published (a .figcraft archive)
+<data>/files/<id>/library.bin  its team library, when one was published (a .figz archive)
 <data>/files/<id>/usage.json   which files use that library's components, as their apps report it
 <data>/plugins/index.json      the plugin directory: every version kept (manifest fields, size, SHA-256)
 <data>/plugins/<sha256>.bin    a plugin bundle, named by the SHA-256 of its bytes
@@ -350,10 +350,10 @@ the address it came from and when it was last opened (for expiry).
 
 ## Backups
 
-[`packaging/server/figcraft-backup.timer`](../packaging/server/figcraft-backup.timer) (installed by
-`install.sh`; `sudo systemctl enable --now figcraft-backup.timer`) does the following every night:
+[`packaging/server/figz-backup.timer`](../packaging/server/figz-backup.timer) (installed by
+`install.sh`; `sudo systemctl enable --now figz-backup.timer`) does the following every night:
 it checks there is twice the data directory's size free, stops the server for the seconds the copy
-takes, keeps `/var/backups/figcraft-server/figcraft-YYYY-MM-DD.tar.gz` (readable by root only) for
+takes, keeps `/var/backups/figz-server/figz-YYYY-MM-DD.tar.gz` (readable by root only) for
 7 days and starts it again. Copy that folder off the machine too. The archives hold every file,
 the addresses files came from, the reports and the **server key**: keep them, and any copy, as
 private as the server itself.
@@ -371,7 +371,7 @@ The server speaks plain WebSocket (`ws://`); TLS comes from a reverse proxy in f
 gives people `wss://` links (and browsers the `wss://` they need on an `https://` page).
 
 - Run the server on the loopback interface (`listen = "127.0.0.1:47900"`), and set
-  `public_url` to the address people use, for example `wss://figcraft.example.com/`. Links and
+  `public_url` to the address people use, for example `wss://figz.example.com/`. Links and
   the publish address then name the proxy.
 - **Caddy** ([`packaging/server/Caddyfile`](../packaging/server/Caddyfile)): a site block for
   your host name with a `reverse_proxy` to `127.0.0.1:47900`. Caddy obtains the certificate and
@@ -382,15 +382,15 @@ gives people `wss://` links (and browsers the `wss://` they need on an `https://
   through), and a read timeout above the server's 45-second idle limit (apps ping every 15
   seconds).
 - **Under a path**: the server answers on any path, so the proxy can forward a prefix such as
-  `/figcraft/` unchanged; set `public_url = "wss://example.com/figcraft/"`.
+  `/figz/` unchanged; set `public_url = "wss://example.com/figz/"`.
 - Tokens never travel in the WebSocket request (the client sends them inside its first message),
   so the proxy's access logs don't record them.
 
-The desktop app, `figcraft-cli` (and so agents through MCP) and the browser build all open
+The desktop app, `figz-cli` (and so agents through MCP) and the browser build all open
 `wss://` links. The desktop app and the CLI check the certificate against Mozilla's list of root
 authorities built into them (not the operating system's store), so a certificate from a public
 authority such as Let's Encrypt just works. For a certificate from a private authority (or a
-self-signed one, such as Caddy's `tls internal`), set the environment variable `FIGCRAFT_CA_FILE`
+self-signed one, such as Caddy's `tls internal`), set the environment variable `FIGZ_CA_FILE`
 to that authority's certificate (a PEM file) before starting the app: it is trusted in addition
 to the built-in list. There is no way to skip the check: a certificate that has expired, is for
 another name or comes from an unknown authority is refused, and the app says which.
@@ -429,12 +429,12 @@ keeps the key for everything else.
   expire.
 - **Team libraries** on a public server live only in files published with the key: a file published
   without it can't hold one (a library is a whole archive the server unpacks and checks).
-- **Moderation.** `figcraft-server files list --sort size|age|idle` shows who published what
+- **Moderation.** `figz-server files list --sort size|age|idle` shows who published what
   (the address) and how many reports each file has; `files remove FILE` takes a file down (whoever
   is in it is disconnected); `block-ip` refuses an address and drops its connections (kept across
   restarts in `blocked.json`; the operator's own key still gets in from anywhere); anyone in a file
   can report it (**Report this file…** in the Share popover, `collab.report`; ten an hour per
-  address), and `figcraft-server reports` lists the reports with the link and address they came
+  address), and `figz-server reports` lists the reports with the link and address they came
   from. Plugin directory publishing stays key-only.
 - **Your responsibility.** As the operator you answer for what is published on your server: give a
   working abuse contact (`operator_contact`) and terms (`terms_url`), read the reports, and remove
@@ -446,7 +446,7 @@ keeps the key for everything else.
 At startup a public server warns in its log when `operator_contact` is empty, when it seems to be
 behind a reverse proxy (a `wss://` `public_url`, or listening on the loopback interface) without
 `trusted_proxy` (every client would then count as the proxy's address, so one person's limits would
-stop everyone), and when `idle_days = 0`. `figcraft-server check` reads the settings without
+stop everyone), and when `idle_days = 0`. `figz-server check` reads the settings without
 starting.
 
 ### Threat model
@@ -469,7 +469,7 @@ clients and waiting for the server, and idle expiry ([Resource limits](#resource
 a link or removing a file cuts every connection that used it, library connections included. Not
 defended against: someone with many unrelated addresses (each gets its own limits; the global caps
 still hold, so they can fill the server up to them until you block them or the files expire), a
-link or owner token that leaks (revoke links with the owner token or `figcraft-server links
+link or owner token that leaks (revoke links with the owner token or `figz-server links
 revoke`; remove the file), and the operator reading files (no end-to-end encryption).
 
 ### Resource limits
@@ -506,12 +506,12 @@ The settings for a public server, as `install.sh` writes them:
 
 ```toml
 listen = "127.0.0.1:47900"
-data = "/var/lib/figcraft-server"
-public_url = "wss://figcraft.example.com/"
+data = "/var/lib/figz-server"
+public_url = "wss://figz.example.com/"
 trusted_proxy = "127.0.0.1"
 open_publish = true
 operator_contact = "abuse@example.com"
-terms_url = "https://example.com/figcraft-terms"
+terms_url = "https://example.com/figz-terms"
 idle_days = 30
 max_file_mb = 8
 max_plugin_mb = 8
@@ -534,58 +534,58 @@ Debian 12+ or Ubuntu 24.04+ machine (a cloud provider's smallest plan, 1 GB of m
 run it). It installs the binary of the release archive it comes in, or builds the copy of the
 source it sits in, or else downloads the latest release for the machine (checked against
 `SHA256SUMS.txt`) or builds a fresh clone (`--from-source`); a build adds a temporary 2 GB swap
-file on a machine with less than 2 GB of memory, so it isn't killed. It makes the `figcraft` user, the
-data directory and `/etc/figcraft-server/server.toml` (only when missing: your edits are kept),
-installs the systemd units and its Caddy site (`/etc/caddy/figcraft-server.caddy`, imported from
+file on a machine with less than 2 GB of memory, so it isn't killed. It makes the `figz` user, the
+data directory and `/etc/figz-server/server.toml` (only when missing: your edits are kept),
+installs the systemd units and its Caddy site (`/etc/caddy/figz-server.caddy`, imported from
 the main Caddyfile, whose other sites it leaves alone), opens the SSH ports `sshd` listens on, 80
 and 443 in `ufw`, and turns `ufw` on unless other services listen on the machine (then it says
 so: allow their ports and enable it yourself, or pass `--firewall-anyway`). Builds run as the
-unprivileged `figcraft-build` user on a copy of the source (root installs nothing from that copy;
+unprivileged `figz-build` user on a copy of the source (root installs nothing from that copy;
 the swap file and the built binary, copied out with the build user's rights, live in the root-only
-`/var/cache/figcraft-install`), and the binary is only ever run as `figcraft` (never as root);
+`/var/cache/figz-install`), and the binary is only ever run as `figz` (never as root);
 a fresh clone builds the latest release tag. A Caddyfile with other sites is never replaced: it
-gains one `import figcraft-server.caddy` line, once (`packaging/server/install-test.sh` checks
+gains one `import figz-server.caddy` line, once (`packaging/server/install-test.sh` checks
 this). It checks new settings before they replace anything, starts it all and prints what to do next. Running it again
 upgrades the binary and restarts the server only when something changed.
 
 1. Create the server (Ubuntu 24.04, x86_64 or arm64) with your SSH key, and note its address.
-2. At your DNS provider, point `figcraft.example.com` (A, and AAAA for IPv6) at that address. Caddy
+2. At your DNS provider, point `figz.example.com` (A, and AAAA for IPv6) at that address. Caddy
    needs it to get the certificate.
 3. Log in and run the script, from a release archive:
 
    ```sh
-   ssh root@figcraft.example.com
-   VERSION=$(curl -fsSL https://api.github.com/repos/storytold/figcraft/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
-   curl -fLO "https://github.com/storytold/figcraft/releases/download/v$VERSION/figcraft-server-$VERSION-linux-$(uname -m).tar.gz"
-   tar -xzf figcraft-server-*.tar.gz && cd figcraft-server-*/
-   sudo ./install.sh --host figcraft.example.com --email abuse@example.com --terms https://example.com/figcraft-terms
+   ssh root@figz.example.com
+   VERSION=$(curl -fsSL https://api.github.com/repos/danish0440/figz/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
+   curl -fLO "https://github.com/danish0440/figz/releases/download/v$VERSION/figz-server-$VERSION-linux-$(uname -m).tar.gz"
+   tar -xzf figz-server-*.tar.gz && cd figz-server-*/
+   sudo ./install.sh --host figz.example.com --email abuse@example.com --terms https://example.com/figz-terms
    ```
 
    or from a copy of the source (a private repository, or unreleased changes): it then builds that
    copy as it is (with the swap file on a small machine).
 
    ```sh
-   git archive --format=tar.gz -o figcraft-src.tar.gz HEAD          # on your machine
-   scp figcraft-src.tar.gz root@figcraft.example.com:
-   ssh root@figcraft.example.com 'mkdir -p figcraft && tar -xzf figcraft-src.tar.gz -C figcraft &&
-     figcraft/packaging/server/install.sh --host figcraft.example.com --email abuse@example.com'
+   git archive --format=tar.gz -o figz-src.tar.gz HEAD          # on your machine
+   scp figz-src.tar.gz root@figz.example.com:
+   ssh root@figz.example.com 'mkdir -p figz && tar -xzf figz-src.tar.gz -C figz &&
+     figz/packaging/server/install.sh --host figz.example.com --email abuse@example.com'
    ```
 
    Without `--host` or `--email` it asks for them. `--private` keeps publishing key-only;
    `--backups` turns the nightly backup on; `--no-firewall` leaves `ufw` alone. To upgrade, copy
    the newer source over and run it again.
-4. Check it: `curl https://figcraft.example.com/healthz` answers `ok` once Caddy has its
-   certificate (a minute after DNS is right); `journalctl -u figcraft-server -f` shows the log.
-5. In FigCraft, **Share ▸ Publish to server…** with `wss://figcraft.example.com/`. Moderate with
-   the commands it printed (`sudo -u figcraft figcraft-server --config /etc/figcraft-server/server.toml
+4. Check it: `curl https://figz.example.com/healthz` answers `ok` once Caddy has its
+   certificate (a minute after DNS is right); `journalctl -u figz-server -f` shows the log.
+5. In FigZ, **Share ▸ Publish to server…** with `wss://figz.example.com/`. Moderate with
+   the commands it printed (`sudo -u figz figz-server --config /etc/figz-server/server.toml
    files list --sort size`, `reports`, `block-ip`).
-6. Point an uptime monitor at `https://figcraft.example.com/healthz`, copy
-   `/var/backups/figcraft-server` off the machine, and upgrade by running the script again.
+6. Point an uptime monitor at `https://figz.example.com/healthz`, copy
+   `/var/backups/figz-server` off the machine, and upgrade by running the script again.
 
 ## Deploy on a Linux server
 
 Hosting for people outside your network: a small Linux server (1 CPU and 1 GB of memory are
-plenty for a team), a DNS name pointing at it (`figcraft.example.com` below: use yours), the
+plenty for a team), a DNS name pointing at it (`figz.example.com` below: use yours), the
 server behind Caddy or nginx for TLS, and systemd keeping it running. The commands are for Debian
 and Ubuntu; other distributions differ only in how packages are installed. `install.sh` does all of
 it ([above](#on-a-fresh-ubuntu-server-with-installsh)); these are the steps by hand.
@@ -594,13 +594,13 @@ it ([above](#on-a-fresh-ubuntu-server-with-installsh)); these are the steps by h
 release's `SHA256SUMS.txt`:
 
 ```sh
-VERSION=$(curl -fsSL https://api.github.com/repos/storytold/figcraft/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
-NAME="figcraft-server-$VERSION-linux-$(uname -m)"
-curl -fLO "https://github.com/storytold/figcraft/releases/download/v$VERSION/$NAME.tar.gz"
-curl -fLO "https://github.com/storytold/figcraft/releases/download/v$VERSION/SHA256SUMS.txt"
+VERSION=$(curl -fsSL https://api.github.com/repos/danish0440/figz/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
+NAME="figz-server-$VERSION-linux-$(uname -m)"
+curl -fLO "https://github.com/danish0440/figz/releases/download/v$VERSION/$NAME.tar.gz"
+curl -fLO "https://github.com/danish0440/figz/releases/download/v$VERSION/SHA256SUMS.txt"
 sha256sum --ignore-missing -c SHA256SUMS.txt
 tar -xzf "$NAME.tar.gz" && cd "$NAME"
-sudo install -m 755 figcraft-server /usr/local/bin/
+sudo install -m 755 figz-server /usr/local/bin/
 ```
 
 or from source (it needs a C compiler for the TLS library; the example files are then in
@@ -609,29 +609,29 @@ or from source (it needs a C compiler for the TLS library; the example files are
 ```sh
 sudo apt install -y build-essential git curl
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env"
-git clone https://github.com/storytold/figcraft && cd figcraft
-cargo build --release --locked -p figcraft-server
-sudo install -m 755 target/release/figcraft-server /usr/local/bin/
+git clone https://github.com/danish0440/figz && cd figz
+cargo build --release --locked -p figz-server
+sudo install -m 755 target/release/figz-server /usr/local/bin/
 cd packaging/server
 ```
 
 **2. A user of its own, its data directory and its settings:**
 
 ```sh
-sudo useradd --system --home-dir /var/lib/figcraft-server --shell /usr/sbin/nologin figcraft
-sudo install -d -o figcraft -g figcraft -m 700 /var/lib/figcraft-server
-sudo install -d -m 755 /etc/figcraft-server
-sudo tee /etc/figcraft-server/server.toml >/dev/null <<'EOF'
+sudo useradd --system --home-dir /var/lib/figz-server --shell /usr/sbin/nologin figz
+sudo install -d -o figz -g figz -m 700 /var/lib/figz-server
+sudo install -d -m 755 /etc/figz-server
+sudo tee /etc/figz-server/server.toml >/dev/null <<'EOF'
 listen = "127.0.0.1:47900"
-data = "/var/lib/figcraft-server"
-public_url = "wss://figcraft.example.com/"
+data = "/var/lib/figz-server"
+public_url = "wss://figz.example.com/"
 trusted_proxy = "127.0.0.1"
 EOF
 ```
 
 (Add the settings of [a public server](#running-a-public-server) to open it to everyone.)
 
-**3. Run it with systemd.** [`figcraft-server.service`](../packaging/server/figcraft-server.service)
+**3. Run it with systemd.** [`figz-server.service`](../packaging/server/figz-server.service)
 runs it as that user, restarts it if it fails, stops it gracefully, and locks it down: no new
 privileges, a read-only system with only the data directory writable, no capabilities, private
 `/tmp` and devices, a system-call filter, memory caps (60% of the machine slows it down, 75%
@@ -639,10 +639,10 @@ stops and restarts it, so only this service is hit) and network only to this mac
 remove `IPAddressAllow`/`IPAddressDeny` to listen on a network address without one).
 
 ```sh
-sudo cp figcraft-server.service /etc/systemd/system/
+sudo cp figz-server.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now figcraft-server
-systemctl status figcraft-server        # logs: journalctl -u figcraft-server
+sudo systemctl enable --now figz-server
+systemctl status figz-server        # logs: journalctl -u figz-server
 ```
 
 **4. TLS in front of it.** Point the DNS name's A (and AAAA) record at the server first, then set
@@ -650,19 +650,19 @@ systemctl status figcraft-server        # logs: journalctl -u figcraft-server
 Debian 12+ and Ubuntu 24.04+):
 
 ```sh
-HOST=figcraft.example.com
+HOST=figz.example.com
 sudo apt install -y caddy
-sed "s/figcraft.example.com/$HOST/" Caddyfile | sudo tee /etc/caddy/Caddyfile >/dev/null
+sed "s/figz.example.com/$HOST/" Caddyfile | sudo tee /etc/caddy/Caddyfile >/dev/null
 sudo systemctl reload caddy
 ```
 
 or **nginx** with a certificate from Let's Encrypt (certbot renews it):
 
 ```sh
-HOST=figcraft.example.com
+HOST=figz.example.com
 sudo apt install -y nginx certbot python3-certbot-nginx
 sudo certbot certonly --nginx -d "$HOST"
-sed "s/figcraft.example.com/$HOST/g" nginx.conf | sudo tee /etc/nginx/conf.d/figcraft.conf >/dev/null
+sed "s/figz.example.com/$HOST/g" nginx.conf | sudo tee /etc/nginx/conf.d/figz.conf >/dev/null
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -676,15 +676,15 @@ sudo ufw allow 443/tcp
 sudo ufw enable
 ```
 
-**6. Publish and share.** Print the publish address (`wss://figcraft.example.com/?key=…`) and use
+**6. Publish and share.** Print the publish address (`wss://figz.example.com/?key=…`) and use
 it in the app's **File ▸ Publish to server…** (see [Publishing a file](#publishing-a-file)):
 
 ```sh
-sudo -u figcraft figcraft-server --config /etc/figcraft-server/server.toml key
+sudo -u figz figz-server --config /etc/figz-server/server.toml key
 ```
 
 The other commands ([Managing files and links](#managing-files-and-links)) run the same way, as
-the `figcraft` user with `--config /etc/figcraft-server/server.toml`.
+the `figz` user with `--config /etc/figz-server/server.toml`.
 
 **In Docker instead of systemd.** [`packaging/server/Dockerfile`](../packaging/server/Dockerfile)
 builds a small image (the binary on a distroless base, no shell) that runs as an unprivileged
@@ -695,12 +695,12 @@ loopback interface only (ports Docker publishes bypass `ufw`), with the proxy fr
 `172.17.0.1` by default):
 
 ```sh
-docker build -f packaging/server/Dockerfile -t figcraft-server .
-sudo install -d /etc/figcraft-server
-printf 'listen = "0.0.0.0:47900"\ndata = "/data"\npublic_url = "wss://figcraft.example.com/"\n' | sudo tee /etc/figcraft-server/server.toml
-docker run -d --name figcraft-server --restart unless-stopped -p 127.0.0.1:47900:47900 \
-  -v figcraft-data:/data -v /etc/figcraft-server/server.toml:/etc/figcraft-server/server.toml:ro figcraft-server
-docker exec figcraft-server /usr/local/bin/figcraft-server --config /etc/figcraft-server/server.toml key
+docker build -f packaging/server/Dockerfile -t figz-server .
+sudo install -d /etc/figz-server
+printf 'listen = "0.0.0.0:47900"\ndata = "/data"\npublic_url = "wss://figz.example.com/"\n' | sudo tee /etc/figz-server/server.toml
+docker run -d --name figz-server --restart unless-stopped -p 127.0.0.1:47900:47900 \
+  -v figz-data:/data -v /etc/figz-server/server.toml:/etc/figz-server/server.toml:ro figz-server
+docker exec figz-server /usr/local/bin/figz-server --config /etc/figz-server/server.toml key
 ```
 
 **Upgrading.** Install the new binary as in step 1, then restart: the restart is graceful and apps
@@ -708,18 +708,18 @@ reconnect on their own. An app speaking another protocol version is refused with
 so: upgrade apps and server together when the release notes say the protocol changed.
 
 ```sh
-sudo systemctl restart figcraft-server
+sudo systemctl restart figz-server
 ```
 
-With Docker: rebuild the image, then `docker rm -f figcraft-server` and the `docker run` above
+With Docker: rebuild the image, then `docker rm -f figz-server` and the `docker run` above
 again (the volume keeps the files).
 
 **Backups.** See [Backups](#backups); with systemd, for example:
 
 ```sh
-sudo systemctl stop figcraft-server
-sudo tar -C /var/lib -czf "figcraft-backup-$(date +%F).tar.gz" figcraft-server
-sudo systemctl start figcraft-server
+sudo systemctl stop figz-server
+sudo tar -C /var/lib -czf "figz-backup-$(date +%F).tar.gz" figz-server
+sudo systemctl start figz-server
 ```
 
 ## Security
@@ -728,7 +728,7 @@ sudo systemctl start figcraft-server
   the server; on the server they are stored unencrypted, so the operator and anyone who can read
   the data directory can read every file. Tell the people who publish to your server so (the
   README's [Privacy and online sharing](../README.md#privacy-and-online-sharing) says it for the
-  default public server, which a build can replace or leave out with `FIGCRAFT_DEFAULT_SERVER`
+  default public server, which a build can replace or leave out with `FIGZ_DEFAULT_SERVER`
   ([releasing](releasing.md#the-default-server)), and whose terms are [online-sharing-terms.md](online-sharing-terms.md): a
   starting point for your own), and set `operator_contact` and `terms_url` on a public one.
 - **Access** is a share link (128-bit random token) per file and access level, an owner token
@@ -766,7 +766,7 @@ sudo systemctl start figcraft-server
   Everything published is checked in full and never run on the server; a bundle's name on disk is
   its hash, so nothing a publisher chooses reaches the file system; downloads are hash-checked at
   both ends and share a bandwidth budget. Installing still means trusting the publisher: a plugin
-  runs in FigCraft's sandbox with the permissions its manifest asks for, which the app shows before
+  runs in FigZ's sandbox with the permissions its manifest asks for, which the app shows before
   it installs anything.
 - **Not end-to-end encrypted**: the server reads every file it keeps (it validates and stores them);
   so can its operator.

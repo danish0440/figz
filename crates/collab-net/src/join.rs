@@ -5,9 +5,9 @@
 use std::sync::Mutex;
 use std::time::Duration;
 
-use figcraft_collab::Client;
-use figcraft_collab::message::{ClientMsg, Peer, Resume, ServerMsg};
-use figcraft_engine::live::{Event, Role, SessionInfo, Status};
+use figz_collab::Client;
+use figz_collab::message::{ClientMsg, Peer, Resume, ServerMsg};
+use figz_engine::live::{Event, Role, SessionInfo, Status};
 
 use crate::inbox::Inbox;
 use crate::invite::Invite;

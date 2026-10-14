@@ -1,8 +1,8 @@
 //! The floating bottom toolbar (UI3): tool groups with flyouts, comments, actions.
 
 use egui::{Align2, Color32, CornerRadius, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
-use figcraft_engine::ToolId;
-use figcraft_engine::vectoredit::VTool;
+use figz_engine::ToolId;
+use figz_engine::vectoredit::VTool;
 use serde_json::json;
 
 use crate::FigApp;
@@ -194,7 +194,7 @@ pub fn show(app: &mut FigApp, ui: &mut Ui) {
             (tr("Getting started"), "help.gettingStarted"),
             (tr("Keyboard shortcuts"), "help.shortcuts"),
             (tr("Help page"), "help.page"),
-            (tr("About FigCraft"), "help.about"),
+            (tr("About FigZ"), "help.about"),
         ] {
             if crate::right::menu_item(ui, l, crate::shortcuts::shortcut(c).unwrap_or("")) {
                 app.run(c, json!({}));
@@ -212,7 +212,7 @@ fn view_only_toolbar(app: &mut FigApp, ui: &mut Ui, why: &'static str) {
     if !matches!(app.session.tool.tool, ToolId::Move | ToolId::Hand) {
         app.run("tool.set", json!({"tool": "move"}));
     }
-    let label = if why == figcraft_engine::live::PUBLISHING { tr("Publishing…") } else { tr("View only") };
+    let label = if why == figz_engine::live::PUBLISHING { tr("Publishing…") } else { tr("View only") };
     let cell = 32.0;
     let text = ui.painter().layout_no_wrap(label.to_string(), crate::theme::semibold(11.5), t.text);
     let badge_w = 12.0 + 14.0 + 6.0 + text.size().x + 12.0;
@@ -289,7 +289,7 @@ fn builder_toolbar(app: &mut FigApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let cell = 32.0;
     let remove = app.session.tool.builder_remove;
-    let has_regions = figcraft_engine::shapebuilder::current(&app.session).is_some_and(|a| !a.regions.is_empty());
+    let has_regions = figz_engine::shapebuilder::current(&app.session).is_some_and(|a| !a.regions.is_empty());
     let alt = pretty_shortcut("Alt");
     let hint = if !has_regions {
         tr("Select overlapping shapes").to_string()
@@ -425,5 +425,5 @@ fn flyout_id(key: &str) -> egui::Id {
 
 /// "Shift+Cmd+K" → "⇧⌘K" on macOS, "Ctrl+Shift+K" elsewhere.
 pub fn pretty_shortcut(s: &str) -> String {
-    figcraft_engine::keymap::display(s, crate::shortcuts::platform())
+    figz_engine::keymap::display(s, crate::shortcuts::platform())
 }

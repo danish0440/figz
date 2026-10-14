@@ -1,14 +1,14 @@
 //! Canvas rendering off the UI thread (desktop) or inline (web). The latest request wins (queued
 //! older ones are skipped); the UI shows each finished image, re-projected to the current view,
 //! until the next one arrives.
-//! The renderer keeps its last image ([`figcraft_render::Retained`]): a pan renders only the
+//! The renderer keeps its last image ([`figz_render::Retained`]): a pan renders only the
 //! uncovered strips and an edit only the areas of the layers that changed.
 
 use std::sync::Arc;
 
-use figcraft_color::ColorProfile;
-use figcraft_doc::{Document, NodeId};
-use figcraft_render::{Pixmap, Retained, View, Work};
+use figz_color::ColorProfile;
+use figz_doc::{Document, NodeId};
+use figz_render::{Pixmap, Retained, View, Work};
 
 #[derive(Clone)]
 pub struct Job {
@@ -17,7 +17,7 @@ pub struct Job {
     pub view: View,
     pub outline: bool,
     /// Outline mode's options (hidden layers, object bounds).
-    pub outline_extras: figcraft_render::Outline,
+    pub outline_extras: figz_render::Outline,
     /// Layers drawn as outlines (outlines for the selection).
     pub outlined: Vec<NodeId>,
     pub skip: Vec<NodeId>,
@@ -62,7 +62,7 @@ fn run(job: &Job, retained: &mut Retained) -> Option<Done> {
     #[cfg(not(target_arch = "wasm32"))]
     let t0 = std::time::Instant::now();
     // The canvas is a preview: what's too small to see in detail at this zoom is approximated.
-    let opts = figcraft_render::Options {
+    let opts = figz_render::Options {
         outline_mode: job.outline,
         outline: job.outline_extras,
         outlined: job.outlined.clone(),
@@ -103,7 +103,7 @@ impl Worker {
         let done_with = finished.clone();
         // The window that renders with it (each window has its own worker).
         let viewport = ctx.viewport_id();
-        let spawned = std::thread::Builder::new().name("figcraft-render".into()).spawn(move || {
+        let spawned = std::thread::Builder::new().name("figz-render".into()).spawn(move || {
             let mut retained = Retained::default();
             while let Ok((mut seq, mut job)) = jobs.recv() {
                 // Skip to the newest queued job.

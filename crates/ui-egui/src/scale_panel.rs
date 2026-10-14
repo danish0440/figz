@@ -4,7 +4,7 @@
 //! with the layers.
 
 use egui::{CornerRadius, Id, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
-use figcraft_doc::{Document, NodeId};
+use figz_doc::{Document, NodeId};
 use serde_json::json;
 
 use crate::FigApp;
@@ -42,7 +42,7 @@ pub fn section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
         }
         ui.add_space(8.0);
         if let Some(a) = anchor_picker(ui, anchor) {
-            app.run("tool.scaleAnchor", json!({"anchor": figcraft_engine::tools::anchor_name(a)}));
+            app.run("tool.scaleAnchor", json!({"anchor": figz_engine::tools::anchor_name(a)}));
         }
     });
     if let Some((k, cx, cy)) = factor.and_then(|k| scale_about(b, anchor, k)) {
@@ -52,7 +52,7 @@ pub fn section(app: &mut FigApp, ui: &mut Ui, doc: &Document, sel: &[NodeId]) {
 
 /// The factor (clamped to 0.01–100) and pivot for scaling `b` by `k` around `anchor`; None when
 /// nothing would change or `k` isn't a usable number.
-fn scale_about(b: figcraft_geom::Rect, anchor: (u8, u8), k: f64) -> Option<(f64, f64, f64)> {
+fn scale_about(b: figz_geom::Rect, anchor: (u8, u8), k: f64) -> Option<(f64, f64, f64)> {
     let k = Some(k).filter(|k| k.is_finite() && *k > 0.0 && (*k - 1.0).abs() > 1e-9)?.clamp(0.01, 100.0);
     let (ax, ay) = (f64::from(anchor.0.min(2)) / 2.0, f64::from(anchor.1.min(2)) / 2.0);
     Some((k, b.x0 + b.width() * ax, b.y0 + b.height() * ay))
@@ -88,7 +88,7 @@ fn anchor_picker(ui: &mut Ui, cur: (u8, u8)) -> Option<(u8, u8)> {
 #[cfg(test)]
 mod tests {
     use super::scale_about;
-    use figcraft_geom::Rect;
+    use figz_geom::Rect;
 
     #[test]
     fn pivot_follows_the_anchor_and_bad_factors_do_nothing() {

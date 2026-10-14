@@ -1,9 +1,9 @@
-//! The version history in `.figcraft` files: round trips, files without versions, damaged entries.
+//! The version history in `.figz` files: round trips, files without versions, damaged entries.
 
 use std::io::Write;
 use std::sync::Arc;
 
-use figcraft_doc::{Document, NodeKind};
+use figz_doc::{Document, NodeKind};
 
 use super::*;
 

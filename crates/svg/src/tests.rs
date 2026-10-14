@@ -1,6 +1,6 @@
 use super::*;
-use figcraft_color::{Color, Paint};
-use figcraft_doc::{Document, Effect, NodeKind};
+use figz_color::{Color, Paint};
+use figz_doc::{Document, Effect, NodeKind};
 
 #[test]
 fn export_basic_shapes() {

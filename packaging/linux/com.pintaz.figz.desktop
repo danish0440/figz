@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=FigZ
+GenericName=Interface Design Tool
+Comment=Design and prototype user interfaces
+Exec=figz %U
+TryExec=figz
+Icon=com.pintaz.figz
+Terminal=false
+StartupNotify=true
+StartupWMClass=figz
+Categories=Graphics;2DGraphics;VectorGraphics;X-Design;
+Keywords=design;interface;ui;ux;prototype;wireframe;mockup;vector;layout;components;
+MimeType=application/x-figz;image/svg+xml;image/png;image/jpeg;x-scheme-handler/figz;

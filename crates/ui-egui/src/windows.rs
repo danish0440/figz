@@ -11,7 +11,7 @@
 use std::cell::RefCell;
 
 use egui::{Context, Pos2, Vec2, ViewportBuilder, ViewportCommand, ViewportId};
-use figcraft_engine::DocState;
+use figz_engine::DocState;
 use serde_json::{Value, json};
 
 use crate::canvas::CanvasState;
@@ -70,7 +70,7 @@ impl Windows {
 
 /// Window `id`'s egui viewport.
 pub fn viewport(id: u64) -> ViewportId {
-    if id == 0 { ViewportId::ROOT } else { ViewportId::from_hash_of(("figcraft_window", id)) }
+    if id == 0 { ViewportId::ROOT } else { ViewportId::from_hash_of(("figz_window", id)) }
 }
 
 thread_local! {
@@ -112,8 +112,8 @@ pub fn take_input(app: &mut FigApp, viewport_id: ViewportId) -> Vec<egui::Event>
 
 fn title_of(ds: Option<&DocState>) -> String {
     match ds {
-        Some(ds) => format!("{}{} – FigCraft", ds.doc.name, if ds.is_dirty() { " •" } else { "" }),
-        None => "FigCraft".into(),
+        Some(ds) => format!("{}{} – FigZ", ds.doc.name, if ds.is_dirty() { " •" } else { "" }),
+        None => "FigZ".into(),
     }
 }
 

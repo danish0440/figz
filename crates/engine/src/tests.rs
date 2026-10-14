@@ -1,7 +1,7 @@
 use serde_json::json;
 
 use super::*;
-use figcraft_doc::NodeKind;
+use figz_doc::NodeKind;
 
 fn sess() -> Session {
     Session::new()
@@ -153,7 +153,7 @@ fn text_create_autosize_and_edit() {
     textedit::end(&mut s).unwrap();
     let n = s.doc().unwrap().node(t).unwrap().clone();
     assert_eq!(n.kind.text().unwrap().characters, "Hello worl");
-    if figcraft_text::find_face("Inter", "Regular").is_some() {
+    if figz_text::find_face("Inter", "Regular").is_some() {
         assert!(n.width > w0);
     }
     // One undo step for the whole edit session.
@@ -288,7 +288,7 @@ fn pointer_draw_move_resize() {
     s.pointer(&PointerEvent::at(PointerKind::Move, 60.0, 40.0, z)).unwrap();
     s.pointer(&PointerEvent::at(PointerKind::Up, 60.0, 40.0, z)).unwrap();
     let r = s.selection()[0];
-    assert_eq!(s.doc().unwrap().world_bounds(r).unwrap(), figcraft_geom::Rect::new(10.0, 10.0, 60.0, 40.0));
+    assert_eq!(s.doc().unwrap().world_bounds(r).unwrap(), figz_geom::Rect::new(10.0, 10.0, 60.0, 40.0));
     assert_eq!(s.tool.tool, ToolId::Move);
     let undo_len = s.ds().unwrap().history.undo.len();
     // Move it.
@@ -484,7 +484,7 @@ fn arrows_reorder_auto_layout_children_and_cmd_arrows_resize() {
     s.execute("node.set", &json!({"id": row, "props": {"sizingH": "hug", "sizingV": "hug"}})).unwrap();
     s.execute("transform.nudgeSize", &json!({"ids": [row], "dw": 1, "dh": 0, "big": true})).unwrap();
     let r = s.doc().unwrap().node(row).unwrap().clone();
-    assert_eq!(r.child_layout.sizing_v, figcraft_doc::Sizing::Hug);
+    assert_eq!(r.child_layout.sizing_v, figz_doc::Sizing::Hug);
 }
 
 #[test]

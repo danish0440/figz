@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use crate::Session;
 use crate::params::id_of;
 use crate::textedit::{begin, insert, key, set_caret};
-use figcraft_doc::{DecorationLength, DecorationStyle, ListStyle, NodeId, ParaList, TextData, color::Color};
+use figz_doc::{DecorationLength, DecorationStyle, ListStyle, NodeId, ParaList, TextData, color::Color};
 
 fn text(s: &mut Session, chars: &str) -> NodeId {
     id_of(&s.execute("text.create", &json!({"text": chars, "x": 0, "y": 0, "props": {"fontSize": 20}})).unwrap()["id"]).unwrap()
@@ -118,7 +118,7 @@ fn list_keys_at_list_items() {
         let mut s = Session::new();
         let t = text(&mut s, chars);
         let ps: Vec<ParaList> = before.iter().map(|(list, indent)| ParaList { list: *list, indent: *indent }).collect();
-        if let figcraft_doc::NodeKind::Text(td) = &mut s.doc_mut().unwrap().get_mut(t).unwrap().kind {
+        if let figz_doc::NodeKind::Text(td) = &mut s.doc_mut().unwrap().get_mut(t).unwrap().kind {
             td.paragraphs = ps;
         }
         begin(&mut s, t, Some(caret), false).unwrap();
@@ -166,7 +166,7 @@ fn paragraph_lists_follow_edits() {
             assert_eq!(t.paragraphs.len(), t.paragraph_count(), "{:?}", t.characters);
         }
         t.set_para_lists(rnd(n + 2), rnd(n + 2), |p| p.indent = 200);
-        assert!((0..t.paragraph_count()).all(|p| t.para_list(p).indent <= figcraft_doc::MAX_LIST_INDENT));
+        assert!((0..t.paragraph_count()).all(|p| t.para_list(p).indent <= figz_doc::MAX_LIST_INDENT));
     }
 }
 
@@ -272,9 +272,9 @@ fn inspect_css_and_files() {
     for style in ["dotted", "wavy"] {
         s.execute("node.set", &json!({"id": t, "props": {"textDecorationStyle": style, "textDecorationSkipInk": true}})).unwrap();
         let doc = s.doc().unwrap();
-        assert!(figcraft_render::render_node(doc, t, 1.0).is_some());
-        assert!(figcraft_svg::export_svg(doc, &[t], &figcraft_svg::SvgOptions::default()).is_some_and(|svg| !svg.contains("NaN")));
-        assert!(figcraft_pdf::export_nodes_pdf(doc, &[t]).is_ok());
+        assert!(figz_render::render_node(doc, t, 1.0).is_some());
+        assert!(figz_svg::export_svg(doc, &[t], &figz_svg::SvgOptions::default()).is_some_and(|svg| !svg.contains("NaN")));
+        assert!(figz_pdf::export_nodes_pdf(doc, &[t]).is_ok());
     }
 }
 
@@ -289,7 +289,7 @@ fn rest_import_lists_and_decorations() {
                   "textDecorationColor": {"value": {"type": "SOLID", "color": {"r": 0, "g": 0, "b": 1, "a": 1}}}},
         "lineTypes": ["ORDERED", "ORDERED", "UNORDERED"], "lineIndentations": [0, 1, 0]
     }]}]}});
-    let (doc, _) = figcraft_format::rest::import(&file, &figcraft_format::rest::no_images).unwrap();
+    let (doc, _) = figz_format::rest::import(&file, &figz_format::rest::no_images).unwrap();
     let t = doc.nodes().find_map(|n| n.kind.text()).unwrap();
     let got: Vec<(ListStyle, u8)> = (0..3).map(|p| (t.para_list(p).list, t.para_list(p).indent)).collect();
     assert_eq!(got, [(N, 0), (N, 1), (B, 0)], "each paragraph's list type and level");

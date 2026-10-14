@@ -25,7 +25,7 @@ mod tests;
 
 use std::io::Read;
 
-use figcraft_doc::Document;
+use figz_doc::Document;
 
 pub use export::export;
 

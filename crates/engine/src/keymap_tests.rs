@@ -9,7 +9,7 @@ use crate::cmd::edit::opacity_from_digits;
 use crate::keymap::{Context, GESTURES, Group, KEYS, Mods, Platform, display, lookup, matches, normalize, parse, primary};
 use crate::params::id_of;
 use crate::tools::ToolId;
-use figcraft_doc::NodeId;
+use figz_doc::NodeId;
 
 const PLATFORMS: [Platform; 2] = [Platform::Mac, Platform::Other];
 

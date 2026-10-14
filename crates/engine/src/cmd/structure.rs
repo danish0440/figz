@@ -1,8 +1,8 @@
 //! Structure: groups, frames, masks, boolean groups, flatten, outline stroke, auto layout, pages.
 
-use figcraft_color::{Color, Paint};
-use figcraft_doc::*;
-use figcraft_geom::{Affine, BezPath, Rect, Shape};
+use figz_color::{Color, Paint};
+use figz_doc::*;
+use figz_geom::{Affine, BezPath, Rect, Shape};
 use serde_json::{Value, json};
 
 use super::edit::{roots, z_sorted};
@@ -65,7 +65,7 @@ pub fn specs() -> Vec<CommandSpec> {
                 // become fixed (the frame keeps filling its own auto layout parent).
                 let doc = s.doc_mut()?;
                 doc.get_mut(i)?.layout = None;
-                figcraft_layout::coherent_sizing(doc, i);
+                figz_layout::coherent_sizing(doc, i);
             }
             ok()
         }),
@@ -76,12 +76,12 @@ pub fn specs() -> Vec<CommandSpec> {
             let doc = s.doc_mut()?;
             for n in doc.ids().collect::<Vec<_>>() {
                 if let Some(node) = doc.node(n)
-                    && node.plugin_data.contains_key("figcraft.thumbnail")
+                    && node.plugin_data.contains_key("figz.thumbnail")
                 {
-                    doc.get_mut(n)?.plugin_data.remove("figcraft.thumbnail");
+                    doc.get_mut(n)?.plugin_data.remove("figz.thumbnail");
                 }
             }
-            doc.get_mut(id)?.plugin_data.insert("figcraft.thumbnail".into(), "true".into());
+            doc.get_mut(id)?.plugin_data.insert("figz.thumbnail".into(), "true".into());
             ok()
         }),
         spec!("object.rasterize", "Rasterize selection", "{ids?, scale? (default 2)}", true, rasterize),
@@ -148,7 +148,7 @@ fn wrap(s: &mut Session, p: &Value, w: Wrap) -> Result<Value> {
         bounds = bounds.inflate(SECTION_PAD, SECTION_PAD);
     }
     let pw = doc.world_transform(parent);
-    let local = figcraft_geom::transform_rect_bbox(pw.inverse(), bounds);
+    let local = figz_geom::transform_rect_bbox(pw.inverse(), bounds);
     let (kind, base) = match &w {
         Wrap::Group => (NodeKind::Group, "Group"),
         Wrap::Frame => (NodeKind::Frame, "Frame"),
@@ -171,7 +171,7 @@ fn wrap(s: &mut Session, p: &Value, w: Wrap) -> Result<Value> {
             g.stroke = first.stroke.clone();
             g.effects = first.effects.clone();
         }
-        g.blend = figcraft_color::BlendMode::Normal;
+        g.blend = figz_color::BlendMode::Normal;
     }
     if let Wrap::Frame = w {
         g.clip = true;
@@ -236,7 +236,7 @@ fn convert(s: &mut Session, p: &Value, cmd: &'static str, to_frame: bool) -> Res
             // Out of the flow there is nothing to fill or to be absolute against.
             doc.get_mut(k)?.child_layout.absolute = false;
         }
-        figcraft_layout::coherent_sizing(doc, *i);
+        figz_layout::coherent_sizing(doc, *i);
         doc.fit_to_children(*i)?;
     }
     Ok(json!({"ids": todo}))
@@ -296,7 +296,7 @@ fn mask(s: &mut Session, p: &Value) -> Result<Value> {
 /// The outline of a node in its parent's space (shapes, text, booleans, groups).
 pub fn outline_in_parent(doc: &Document, id: NodeId) -> Option<BezPath> {
     let n = doc.node(id)?;
-    let (mut p, _) = figcraft_render::subtree_outline(doc, n, 0)?;
+    let (mut p, _) = figz_render::subtree_outline(doc, n, 0)?;
     p.apply_affine(n.transform);
     Some(p)
 }
@@ -315,12 +315,12 @@ fn flatten(s: &mut Session, p: &Value) -> Result<Value> {
         let Some(n) = doc.node(*i) else { continue };
         // Booleans flatten to their result; strokes don't get outlined.
         let Some((mut op, rule)) = (match &n.kind {
-            NodeKind::Group | NodeKind::Frame | NodeKind::Component { .. } | NodeKind::Instance { .. } => figcraft_render::subtree_outline(doc, n, 0),
-            _ => figcraft_render::node_outline(doc, n),
+            NodeKind::Group | NodeKind::Frame | NodeKind::Component { .. } | NodeKind::Instance { .. } => figz_render::subtree_outline(doc, n, 0),
+            _ => figz_render::node_outline(doc, n),
         }) else {
             continue;
         };
-        even |= rule == figcraft_render::FillRule::EvenOdd;
+        even |= rule == figz_render::FillRule::EvenOdd;
         // Into the common parent's space.
         let w = doc.world_transform(*i);
         op.apply_affine(pw.inverse() * w);
@@ -350,7 +350,7 @@ fn flatten(s: &mut Session, p: &Value) -> Result<Value> {
         v.stroke = StrokeProps { align: StrokeAlign::Center, ..f.stroke.clone() };
         v.effects = f.effects.clone();
         v.opacity = f.opacity;
-        v.blend = if matches!(f.blend, figcraft_color::BlendMode::PassThrough) { figcraft_color::BlendMode::Normal } else { f.blend };
+        v.blend = if matches!(f.blend, figz_color::BlendMode::PassThrough) { figz_color::BlendMode::Normal } else { f.blend };
     }
     doc.insert(v, parent, index)?;
     for i in &ids {
@@ -369,17 +369,17 @@ fn outline_stroke(s: &mut Session, p: &Value) -> Result<Value> {
         if !n.has_visible_stroke() {
             continue;
         }
-        let closed = figcraft_doc::geometry::is_closed(&n);
+        let closed = figz_doc::geometry::is_closed(&n);
         let Some(geom) = (match &n.kind {
-            NodeKind::Text(_) | NodeKind::BooleanOp { .. } => figcraft_render::node_outline(doc, &n).map(|(p, _)| p),
-            _ => figcraft_doc::geometry::stroke_geometry(&n),
+            NodeKind::Text(_) | NodeKind::BooleanOp { .. } => figz_render::node_outline(doc, &n).map(|(p, _)| p),
+            _ => figz_doc::geometry::stroke_geometry(&n),
         }) else {
             continue;
         };
-        let area = figcraft_render::draw::stroke_area(&n, &geom, closed);
+        let area = figz_render::draw::stroke_area(&n, &geom, closed);
         let mut path = (*area).clone();
         // Union the pieces so the outline is one clean shape.
-        if let Ok(u) = figcraft_pathops::simplify(&path) {
+        if let Ok(u) = figz_pathops::simplify(&path) {
             path = u;
         }
         let bb = path.bounding_box();
@@ -426,7 +426,7 @@ fn outline_stroke(s: &mut Session, p: &Value) -> Result<Value> {
 fn infer_layout(doc: &Document, frame: NodeId) -> AutoLayout {
     let Some(f) = doc.node(frame) else { return AutoLayout::default() };
     let boxes: Vec<Rect> =
-        f.children.iter().filter_map(|c| doc.node(*c)).map(|c| figcraft_geom::transform_rect_bbox(c.transform, c.local_rect())).collect();
+        f.children.iter().filter_map(|c| doc.node(*c)).map(|c| figz_geom::transform_rect_bbox(c.transform, c.local_rect())).collect();
     if boxes.is_empty() {
         return AutoLayout { padding: [10.0; 4], gap: 10.0, ..Default::default() };
     }
@@ -473,8 +473,8 @@ fn layout_add(s: &mut Session, p: &Value) -> Result<Value> {
         let mut kids = doc.get(*f)?.children.clone();
         let vertical = al.mode == LayoutMode::Vertical;
         kids.sort_by(|a, b| {
-            let pa = doc.node(*a).map(|n| figcraft_geom::transform_rect_bbox(n.transform, n.local_rect())).unwrap_or_default();
-            let pb = doc.node(*b).map(|n| figcraft_geom::transform_rect_bbox(n.transform, n.local_rect())).unwrap_or_default();
+            let pa = doc.node(*a).map(|n| figz_geom::transform_rect_bbox(n.transform, n.local_rect())).unwrap_or_default();
+            let pb = doc.node(*b).map(|n| figz_geom::transform_rect_bbox(n.transform, n.local_rect())).unwrap_or_default();
             if vertical { pa.y0.total_cmp(&pb.y0) } else { pa.x0.total_cmp(&pb.x0) }
         });
         let n = doc.get_mut(*f)?;
@@ -510,19 +510,19 @@ fn rasterize(s: &mut Session, p: &Value) -> Result<Value> {
     let mut out = Vec::new();
     for i in ids {
         let doc = s.doc()?;
-        let Some(pix) = figcraft_render::render_node(doc, i, scale) else { continue };
-        let png = figcraft_render::encode_png(&pix).map_err(EngineError::Other)?;
-        let b = figcraft_render::export_bounds(doc, i).unwrap_or_default();
+        let Some(pix) = figz_render::render_node(doc, i, scale) else { continue };
+        let png = figz_render::encode_png(&pix).map_err(EngineError::Other)?;
+        let b = figz_render::export_bounds(doc, i).unwrap_or_default();
         let parent = doc.get(i)?.parent.ok_or_else(|| bad("object.rasterize", "page"))?;
         let idx = doc.index_in_parent(i);
         let pw = doc.world_transform(parent);
         let name = doc.get(i)?.name.clone();
         let docm = s.doc_mut()?;
-        let (hash, _, _) = figcraft_format::add_image(docm, png).map_err(|e| EngineError::Other(e.to_string()))?;
+        let (hash, _, _) = figz_format::add_image(docm, png).map_err(|e| EngineError::Other(e.to_string()))?;
         let rid = docm.alloc_id();
         let mut r = Node::new(rid, NodeKind::Rectangle, name, b.width(), b.height());
         r.transform = pw.inverse() * Affine::translate((b.x0, b.y0));
-        r.fills = vec![Paint::image(hash, figcraft_color::ImageScaleMode::Fill)];
+        r.fills = vec![Paint::image(hash, figz_color::ImageScaleMode::Fill)];
         docm.insert(r, parent, idx.map(|x| x + 1))?;
         docm.remove(i)?;
         out.push(rid);
@@ -539,7 +539,7 @@ fn simplify(s: &mut Session, p: &Value) -> Result<Value> {
         if let NodeKind::Vector { network } = &mut n.kind {
             let fill = network.fill_path();
             let src = if fill.elements().is_empty() { network.stroke_path() } else { fill };
-            let simplified = figcraft_geom::kurbo::simplify::simplify_bezpath(src.iter(), tol, &Default::default());
+            let simplified = figz_geom::kurbo::simplify::simplify_bezpath(src.iter(), tol, &Default::default());
             let regions = !network.regions.is_empty();
             let mut net = VectorNetwork::from_path(&simplified);
             if !regions {
@@ -556,13 +556,13 @@ fn offset_path(s: &mut Session, p: &Value) -> Result<Value> {
     for i in req_targets("vector.offset", s, p)? {
         let doc = s.doc_mut()?;
         let n = doc.get(i)?.clone();
-        let Some((path, _)) = figcraft_render::node_outline(doc, &n) else { continue };
+        let Some((path, _)) = figz_render::node_outline(doc, &n) else { continue };
         let props = StrokeProps { weight: d.abs() * 2.0, join: StrokeJoin::Round, align: StrokeAlign::Center, ..Default::default() };
-        let ring = figcraft_pathops::stroke_center(&path, d.abs() * 2.0, &props);
+        let ring = figz_pathops::stroke_center(&path, d.abs() * 2.0, &props);
         let res = if d >= 0.0 {
-            figcraft_pathops::boolean(&[path, ring], BoolOp::Union)
+            figz_pathops::boolean(&[path, ring], BoolOp::Union)
         } else {
-            figcraft_pathops::boolean(&[path, ring], BoolOp::Subtract)
+            figz_pathops::boolean(&[path, ring], BoolOp::Subtract)
         };
         let Ok(mut res) = res else { continue };
         let bb = res.bounding_box();
@@ -624,9 +624,9 @@ fn resize_to_fit(s: &mut Session, p: &Value) -> Result<Value> {
             continue;
         }
         // Children's bounds in the container's own coordinates.
-        let mut b: Option<figcraft_geom::Rect> = None;
+        let mut b: Option<figz_geom::Rect> = None;
         for c in n.children.iter().filter_map(|c| doc.node(*c)).filter(|c| c.visible) {
-            let r = figcraft_geom::transform_rect_bbox(c.transform, c.local_rect());
+            let r = figz_geom::transform_rect_bbox(c.transform, c.local_rect());
             if r.x0.is_finite() && r.y0.is_finite() && r.x1.is_finite() && r.y1.is_finite() {
                 b = Some(b.map_or(r, |u| u.union(r)));
             }

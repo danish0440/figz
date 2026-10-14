@@ -1,12 +1,12 @@
-# FigCraft — instructions for agents
+# FigZ — instructions for agents
 
-FigCraft is a clean-room, open-source, pure-Rust (egui) reimplementation of the Figma design workflow:
+FigZ is a clean-room, open-source, pure-Rust (egui) reimplementation of the Figma design workflow:
 interface design, auto layout, components and variants, styles and variables, prototyping and
 inspection. It runs natively on macOS, Windows, Linux and FreeBSD, and in the browser via WASM.
 Siblings: `../vectorcraft` (Illustrator-class), `../photocraft` (Photoshop-class), `../designcraft`
-(InDesign-class) and the other Crafting Apps; same conventions.
+(InDesign-class) and the other Z Apps; same conventions.
 
-Standards and learnings shared across the crafting apps live in `../../craftrules` (checked out
+Standards and learnings shared across the Z apps live in `../../craftrules` (checked out
 next to `craft-apps/`, or `storytold/craftrules`). Read its `AGENTS.md` at the start of a session,
 follow its standards, and contribute reusable learnings back there. Never code: repos don't share
 code.
@@ -37,17 +37,17 @@ code.
   other product, or from any source whose licence doesn't allow it.** This includes "lookalike"
   redraws of their icons. Breaking this rule is the worst thing you can do in this repo.
 - Every image, icon, font or other asset must be one of:
-  - original work created for FigCraft by a contributor (licensed MIT OR Apache-2.0);
+  - original work created for FigZ by a contributor (licensed MIT OR Apache-2.0);
   - OSI open source;
   - public domain / CC0;
   - Creative Commons with redistribution allowed.
 - **Every asset file must have a row in [`ATTRIBUTION.md`](ATTRIBUTION.md)** (path, author, source,
   licence, notes). `cargo xtask assets` (part of `cargo xtask ci`) fails on any unlisted file under
   `assets/`, `docs/brand/` or `docs/images/`.
-- FigCraft's UI icons are drawn in code (`crates/ui-egui/src/icons.rs`) from simple primitives and
+- FigZ's UI icons are drawn in code (`crates/ui-egui/src/icons.rs`) from simple primitives and
   are original. Keep it that way: new icons are new code, designed from scratch.
 - The app icon is the owner's chameleon drawing, vectorised (`assets/app-icon/README.md`); `cargo xtask icon`
-  renders the PNGs and `.ico` from `assets/app-icon/figcraft.svg`.
+  renders the PNGs and `.ico` from `assets/app-icon/figz.svg`.
 - **Fonts live in [storytold/craft-fonts](https://github.com/storytold/craft-fonts), never in this
   repo.** The app uses it only through the optional `CRAFT_FONTS_DIR` build input
   (`.cargo/config.toml` points it at `../craft-fonts` for local builds; `crates/text/build.rs`
@@ -55,14 +55,14 @@ code.
 - Demo and test content is synthetic or public domain; never personal photos or data.
 - Code and original assets are MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`, `NOTICE`). The
   ArtCraft logos in `docs/brand/` are trademarks, not open source, under
-  `docs/brand/LICENSE-brand.txt`: never modify them or use them outside FigCraft.
+  `docs/brand/LICENSE-brand.txt`: never modify them or use them outside FigZ.
 - If the provenance of an asset is unclear, don't add it.
 
 ### Never crash
 - No `unwrap()`, `expect()`, `panic!`, `unreachable!`, `todo!`, `unimplemented!` in shipped code
   (workspace clippy lints deny them; tests may use them). Return `Result`/`Option`; use `.get()` for
   data-derived indexes; slice strings only at char boundaries; check floats are finite; cap sizes.
-- `figcraft_engine::guard` turns a panicking command into `EngineError::Internal` and the document
+- `figz_engine::guard` turns a panicking command into `EngineError::Internal` and the document
   is rolled back; the desktop app also guards each UI frame and writes recovery copies. These are
   safety nets, not substitutes for `Result`.
 - `unsafe_code = "forbid"` workspace-wide.
@@ -89,7 +89,7 @@ milestone id in the message (`M2.1: auto layout wrap`). Commit after every lande
 to `main`.
 
 ## Running and looking at the app
-- `cargo run -p figcraft -- --control <port> [file.figcraft|file.svg|image]`. Pick a free port
+- `cargo run -p figz -- --control <port> [file.figz|file.svg|image]`. Pick a free port
   (`python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1])'`);
   sibling apps use the control channel too.
 - Drive it with JSON lines, e.g.
@@ -98,7 +98,7 @@ to `main`.
   in `crates/ui-egui/src/control.rs` and `docs/control-protocol.md`.
 - **For UI work, look at the result** (take a screenshot and read the PNG). Compare with the
   incumbent side by side where the owner allows (`plan/figma/`).
-- Headless: `figcraft-cli` (`info`, `export`, `run`, `commands`, `mcp`). MCP: `figcraft-cli mcp`
+- Headless: `figz-cli` (`info`, `export`, `run`, `commands`, `mcp`). MCP: `figz-cli mcp`
   (see `docs/mcp.md`).
 - Shell gotcha on the owner's machine: `mv`/`cp` may be aliased interactive — use `/bin/mv -f`.
 - Parallel agents: separate `CARGO_TARGET_DIR` per agent, edit only the crates/files you own,

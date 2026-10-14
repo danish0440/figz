@@ -77,10 +77,10 @@ fn line_height_and_letter_spacing_follow_number_variables_in_pixels() {
     s.execute("variable.bind", &json!({"ids": [t], "field": "lineHeight", "variable": "leading"})).unwrap();
     s.execute("variable.bind", &json!({"ids": [t], "field": "letterSpacing", "variable": "tracking"})).unwrap();
     let style = |s: &Session| s.doc().unwrap().node(t).unwrap().kind.text().unwrap().style.clone();
-    assert_eq!(style(&s).line_height, figcraft_doc::LineHeight::Pixels(24.0));
-    assert_eq!(style(&s).letter_spacing, figcraft_doc::LetterSpacing::Pixels(2.0));
+    assert_eq!(style(&s).line_height, figz_doc::LineHeight::Pixels(24.0));
+    assert_eq!(style(&s).letter_spacing, figz_doc::LetterSpacing::Pixels(2.0));
     s.execute("variable.set", &json!({"variable": "leading", "value": 30})).unwrap();
-    assert_eq!(style(&s).line_height, figcraft_doc::LineHeight::Pixels(30.0));
+    assert_eq!(style(&s).line_height, figz_doc::LineHeight::Pixels(30.0));
 }
 
 #[test]
@@ -102,16 +102,16 @@ fn effects_follow_their_variables() {
     bind(&mut s, "effects/9/radius", "blur");
     let fx = |s: &Session| s.doc().unwrap().node(r).unwrap().effects.clone();
     match &fx(&s)[0].kind {
-        figcraft_doc::EffectKind::DropShadow(sh) => {
+        figz_doc::EffectKind::DropShadow(sh) => {
             assert_eq!(sh.offset.1, 6.0);
             assert_eq!(sh.color.to_hex(), "FF0000");
             assert!((sh.color.a - 0.5).abs() < 0.01);
         }
         k => panic!("{k:?}"),
     }
-    assert!(matches!(fx(&s)[1].kind, figcraft_doc::EffectKind::LayerBlur(ref b) if b.radius == 12.0));
+    assert!(matches!(fx(&s)[1].kind, figz_doc::EffectKind::LayerBlur(ref b) if b.radius == 12.0));
     s.execute("variable.set", &json!({"variable": "blur", "value": -3})).unwrap();
-    assert!(matches!(fx(&s)[1].kind, figcraft_doc::EffectKind::LayerBlur(ref b) if b.radius == 0.0), "clamped");
+    assert!(matches!(fx(&s)[1].kind, figz_doc::EffectKind::LayerBlur(ref b) if b.radius == 0.0), "clamped");
     // Pickers offer effect-scoped variables for these fields.
     let doc = s.doc().unwrap();
     assert_eq!(crate::cmd::variables::field_scope(doc, r, "effects/0/color"), Some("EFFECT_COLOR"));

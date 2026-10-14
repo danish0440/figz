@@ -1,22 +1,22 @@
-# figcraft-cli
+# figz-cli
 
-FigCraft without a window: inspect, export, convert and render documents, run command scripts, list
+FigZ without a window: inspect, export, convert and render documents, run command scripts, list
 commands, serve MCP and measure performance. Build it with
-`cargo build --release -p figcraft-cli` (binary `target/release/figcraft-cli`).
+`cargo build --release -p figz-cli` (binary `target/release/figz-cli`).
 
 Bad arguments print usage and exit with code 2; failures exit with 1. The CLI never panics on input.
 
 ## Fonts
 
-Text lays out and renders with the same fonts as the desktop app: the fonts built into FigCraft
+Text lays out and renders with the same fonts as the desktop app: the fonts built into FigZ
 plus the installed system fonts. The system fonts are indexed once per run, the first time text is
 laid out (about 60 ms warm on a Windows machine with ~900 font files; a run without text skips it).
-Every subcommand takes `--no-system-fonts` (or set `FIGCRAFT_NO_SYSTEM_FONTS=1`, which the desktop
+Every subcommand takes `--no-system-fonts` (or set `FIGZ_NO_SYSTEM_FONTS=1`, which the desktop
 app honours too) to use only the built-in fonts, for renders that come out the same on every
 machine, e.g. in CI.
 
-The collaboration server is a binary of its own, `figcraft-server` (`cargo build --release -p
-figcraft-server`): it keeps files with share links and serves their live sessions, and its
+The collaboration server is a binary of its own, `figz-server` (`cargo build --release -p
+figz-server`): it keeps files with share links and serves their live sessions, and its
 `key`, `files`, `links`, `reports`, `block-ip` and `check` subcommands manage them (a server can
 be open to the public: [server.md](server.md#running-a-public-server)). See [server.md](server.md).
 
@@ -34,8 +34,8 @@ grey placeholder. `.fig` files are read the same way (best effort, images from t
 `info` lists what wasn't imported as `note:` lines.
 
 ```text
-$ figcraft-cli info app.figcraft
-app.figcraft — App (412 nodes, 6 styles, 12 variables, 3 images)
+$ figz-cli info app.figz
+app.figz — App (412 nodes, 6 styles, 12 variables, 3 images)
 page 1 "Screens": 380 nodes, 4 top-level
   2 FRAME "Home" 393.0×852.0
   …
@@ -48,7 +48,7 @@ page 1 "Screens": 380 nodes, 4 top-level
 - `<out>` has an image extension: one file with the given `--node`, or the whole page composited.
 - `--node` takes a layer id (`12` or `0:12`) or a layer name.
 - `--format fig` (or an `<out>` ending in `.fig`) writes the whole file as `.fig`, experimental:
-  written from public format notes and checked only by opening it again in FigCraft; other apps
+  written from public format notes and checked only by opening it again in FigZ; other apps
   may not open every file. What was left out (shared style links, variables, comments, Dev Mode
   data…) is printed as `note:` lines.
 - The format comes from `--format`, else `<out>`'s extension, else png. `--scale` (default 1, max 64)
@@ -66,21 +66,21 @@ page 1 "Screens": 380 nodes, 4 top-level
   outside the bleed; the page boxes are set (MediaBox the sheet, BleedBox, TrimBox the frame).
   `--cmyk` writes CMYK colour, images included, converted from sRGB with the naive formula
   `K = 1 − max(R, G, B)`, `C = (1 − R − K) / (1 − K)` (M and Y alike): DeviceCMYK without an
-  output intent (no CMYK profile ships with FigCraft), so proof against your printer's profile.
+  output intent (no CMYK profile ships with FigZ), so proof against your printer's profile.
 
 ```sh
-figcraft-cli export app.figcraft -o exports/ --scale 2
-figcraft-cli export app.figcraft -o hero.svg --node "Hero"
-figcraft-cli export app.figcraft -o screens.pdf --page "Screens"
-figcraft-cli export app.figcraft -o poster.pdf --node "Poster" --bleed 3mm --crop-marks --cmyk
-figcraft-cli export app.figcraft -o handoff.fig
+figz-cli export app.figz -o exports/ --scale 2
+figz-cli export app.figz -o hero.svg --node "Hero"
+figz-cli export app.figz -o screens.pdf --page "Screens"
+figz-cli export app.figz -o poster.pdf --node "Poster" --bleed 3mm --crop-marks --cmyk
+figz-cli export app.figz -o handoff.fig
 ```
 
 ### `convert <in> <out>`
 
-By extension. Inputs: `.figcraft`, `.json` (FigCraft or REST API file JSON), `.fig` (best effort), `.svg` (an editable frame: groups,
+By extension. Inputs: `.figz`, `.json` (FigZ or REST API file JSON), `.fig` (best effort), `.svg` (an editable frame: groups,
 shapes, text, gradients, masks and effects; `info` lists what it left out as `note:` lines), `.png/.jpg/.webp/.gif/.tif/.bmp`
-(an image layer). Outputs: `.figcraft`, `.json` (FigCraft JSON, pretty-printed), `.svg`,
+(an image layer). Outputs: `.figz`, `.json` (FigZ JSON, pretty-printed), `.svg`,
 `.png/.jpg/.webp` (the current page rendered at 1x with its background), `.pdf` (the current page's
 frames, one page each), `.fig` (the whole file, experimental, as `export --format fig`).
 
@@ -119,8 +119,8 @@ them and `file.newFromTemplate` opens one as the document the following steps (a
 
 ```sh
 echo '[{"command": "file.newFromTemplate", "params": {"template": "dashboard"}}]' > start.json
-figcraft-cli run start.json --out dashboard.figcraft
-figcraft-cli export dashboard.figcraft -o dashboard.png
+figz-cli run start.json --out dashboard.figz
+figz-cli export dashboard.figz -o dashboard.png
 ```
 
 ### `commands [--json] [--filter TEXT]`
@@ -131,17 +131,17 @@ machines.
 ### `mcp [--attach PORT]`
 
 Serve MCP on stdio: headless by default, or attached to a running app started with
-`figcraft --control PORT`. See [mcp.md](mcp.md). The headless session can host, join and publish
+`figz --control PORT`. See [mcp.md](mcp.md). The headless session can host, join and publish
 live sessions (`collab.*`: without a key on a server open to the public, with `collab.serverInfo`,
 `collab.manageFile` for the owner token and `collab.report`) and use plugin directories
 (`plugin.directory.*`); the one-shot `run` can't (no network link).
 
 ### `plugin publish <folder> --server ws://host:port/[?key=KEY]`
 
-Publishes a plugin folder (`figcraft-plugin.json`, the module its `main` names, an optional `assets/`
-folder) to a `figcraft-server`'s plugin directory as a new version, and prints its name, version,
+Publishes a plugin folder (`figz-plugin.json`, the module its `main` names, an optional `assets/`
+folder) to a `figz-server`'s plugin directory as a new version, and prints its name, version,
 size and SHA-256. The server's key comes from the address or, better, from the
-`FIGCRAFT_SERVER_KEY` environment variable (it then stays out of the shell history and process
+`FIGZ_SERVER_KEY` environment variable (it then stays out of the shell history and process
 lists); it is never printed. The bundle is checked before it is sent and again by the server. See
 [plugins.md](plugins.md#plugin-directories).
 

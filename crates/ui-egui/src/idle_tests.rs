@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use egui::{Event, Pos2, RawInput, Rect, ViewportId, vec2};
-use figcraft_engine::Session;
+use figz_engine::Session;
 use serde_json::{Value, json};
 
 use crate::present_tests::id;
@@ -205,7 +205,7 @@ fn a_finished_background_render_wakes_the_ui() {
     worker.submit(crate::render_worker::Job {
         doc: ds.doc.clone(),
         page: ds.page,
-        view: figcraft_render::View { origin: (0.0, 0.0), scale: 1.0, width: 120, height: 120 },
+        view: figz_render::View { origin: (0.0, 0.0), scale: 1.0, width: 120, height: 120 },
         outline: false,
         outline_extras: Default::default(),
         outlined: vec![],
@@ -238,7 +238,7 @@ fn control_requests_and_screenshots_wake_an_idle_ui() {
     assert!(rx.try_recv().unwrap().result.is_ok());
     h.assert_idle("after a control request");
     // A screenshot keeps frames coming until the window delivers it, then the UI rests again.
-    let path = std::env::temp_dir().join(format!("figcraft-idle-shot-{}.png", std::process::id()));
+    let path = std::env::temp_dir().join(format!("figz-idle-shot-{}.png", std::process::id()));
     let params = json!({"path": path.to_string_lossy()});
     h.app.control_queue.push(ControlRequest { id: json!(2), method: "ui.screenshot".into(), params, reply: tx, cancelled: Default::default() });
     for _ in 0..5 {

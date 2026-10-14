@@ -1,6 +1,6 @@
-# Translating FigCraft
+# Translating FigZ
 
-FigCraft's interface strings live in one TOML catalog per language in
+FigZ's interface strings live in one TOML catalog per language in
 [`crates/ui-egui/locales/`](../crates/ui-egui/locales). The build bakes every catalog into the
 binary (desktop and web); nothing is read at run time. Preferences ▸ Language picks the language
 and the interface switches at once. System takes the first of the OS's preferred languages that has
@@ -48,7 +48,7 @@ None of the three has plural forms.
 CJK text needs a CJK font, which egui and Inter lack: the desktop app adds an installed one when
 something on screen needs it (see `crates/ui-egui/src/cjk.rs`). The web build has no system fonts,
 so Japanese, Korean and Chinese appear there only in a build with craft-fonts and
-`FIGCRAFT_EMBED_CJK=1` (Noto Sans CJK SC, +16 MB); otherwise they are left out of the picker. A
+`FIGZ_EMBED_CJK=1` (Noto Sans CJK SC, +16 MB); otherwise they are left out of the picker. A
 Chinese UI puts its Chinese face first so Han takes Simplified Chinese shapes. A new CJK or other non-Latin
 language also needs its script in `cjk::language`.
 
@@ -57,7 +57,7 @@ language also needs its script in `cjk::language`.
 1. Copy `crates/ui-egui/locales/es.toml` to `<code>.toml` (a BCP 47 code: `fr`, `pt-BR`, `ja`) and
    set `[meta] name` and `status = "draft — needs native review"`.
 2. Translate every value; keep the keys. Keep `{placeholders}` exactly, "…" where English has it,
-   brand names and keyboard glyphs. English labels of commands: `figcraft-cli commands`.
+   brand names and keyboard glyphs. English labels of commands: `figz-cli commands`.
 3. Plurals: give `one` only if the language has a singular form (Japanese, Korean and Chinese give
    only `other`, and `plural_one` returns false for them). `trn` picks `one` for a count of 1, and
    also for 0 in French and Brazilian Portuguese (keep `{n}` in their `one` forms); a language with other rules needs its rule in
@@ -70,7 +70,7 @@ language also needs its script in `cjk::language`.
    add its code to `COMPLETE` locally and run the check.
 5. Run the check and look at the panels in the app (longer words must fit the right panel):
 
-       cargo test -p figcraft-ui-egui i18n
+       cargo test -p figz-ui-egui i18n
 
    Dropdowns, the right panel's two-column labels and the home cards cut a label that doesn't fit
    with "…" and show it in full on hover; elsewhere, look for clipped or wrapped text.

@@ -1,5 +1,5 @@
 //! Where MCP tool calls end up: a control-channel method call, answered either by an in-process
-//! engine session ([`crate::Headless`]) or by a running FigCraft app ([`Attached`]).
+//! engine session ([`crate::Headless`]) or by a running FigZ app ([`Attached`]).
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpStream, ToSocketAddrs};
@@ -8,7 +8,7 @@ use std::time::Duration;
 use base64::Engine as _;
 use serde_json::{Value, json};
 
-/// Something that answers the FigCraft control-channel methods (`engine.execute`,
+/// Something that answers the FigZ control-channel methods (`engine.execute`,
 /// `engine.commands`, `document.inspect`, `node.get`, `ui.pointer`, `ui.key`, `ui.type`,
 /// `ui.render`, `ui.screenshot`, `ui.inspect`). See `docs/control-protocol.md`.
 pub trait Backend {
@@ -74,7 +74,7 @@ pub fn page_children<B: Backend + ?Sized>(b: &mut B) -> Result<Vec<u64>, String>
 
 fn temp_png(what: &str) -> String {
     let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    std::env::temp_dir().join(format!("figcraft-mcp-{what}-{}-{n}.png", std::process::id())).to_string_lossy().into_owned()
+    std::env::temp_dir().join(format!("figz-mcp-{what}-{}-{n}.png", std::process::id())).to_string_lossy().into_owned()
 }
 
 fn read_and_remove(path: &str) -> Result<Vec<u8>, String> {
@@ -90,7 +90,7 @@ pub fn decode_data(v: &Value) -> Result<Vec<u8>, String> {
     base64::engine::general_purpose::STANDARD.decode(d.trim()).map_err(|e| format!("bad base64 from the app: {e}"))
 }
 
-/// A running FigCraft app, reached through its loopback control port (`figcraft --control PORT`).
+/// A running FigZ app, reached through its loopback control port (`figz --control PORT`).
 pub struct Attached {
     addr: String,
     conn: Option<(BufReader<TcpStream>, TcpStream)>,
@@ -168,14 +168,14 @@ impl Backend for Attached {
         let line = json!({"id": id, "method": method, "params": params}).to_string();
         if self.conn.is_none() || self.stale() {
             self.reconnect().map_err(|e| {
-                format!("FigCraft app at {} is not reachable: {e} (request was not sent; start it with `figcraft --control PORT`)", self.addr)
+                format!("FigZ app at {} is not reachable: {e} (request was not sent; start it with `figz --control PORT`)", self.addr)
             })?;
         }
         // A lost reply does not mean the app failed to apply the request.
         let reply = self.roundtrip(&line).map_err(|e| {
             self.conn = None;
             format!(
-                "FigCraft control call `{method}` at {} failed: {e}; the operation may have completed. Inspect the document before retrying.",
+                "FigZ control call `{method}` at {} failed: {e}; the operation may have completed. Inspect the document before retrying.",
                 self.addr
             )
         })?;
@@ -192,6 +192,6 @@ impl Backend for Attached {
     }
 
     fn describe(&self) -> String {
-        format!("attached to the FigCraft app at {}", self.addr)
+        format!("attached to the FigZ app at {}", self.addr)
     }
 }

@@ -2,9 +2,9 @@
 //! export.
 
 use egui::{Align2, Color32, Context, CornerRadius, RichText, Sense, Stroke, vec2};
-use figcraft_color::ColorProfile;
-use figcraft_doc::{ExportFormat, ExportSetting, ExportSize, NodeId};
-use figcraft_engine::cmd::file::{export_jobs, exportable_layers};
+use figz_color::ColorProfile;
+use figz_doc::{ExportFormat, ExportSetting, ExportSize, NodeId};
+use figz_engine::cmd::file::{export_jobs, exportable_layers};
 use serde_json::json;
 
 use crate::FigApp;
@@ -82,20 +82,23 @@ fn about_body(ui: &mut egui::Ui, t: &Tokens) {
         ui.painter().rect_filled(r, CornerRadius::same(10), ACCENT);
         icons::paint(ui.painter(), r.shrink(10.0), Icon::Logo, Color32::WHITE);
         ui.vertical(|ui| {
-            ui.label(RichText::new("FigCraft").font(semibold(18.0)));
+            ui.label(RichText::new("FigZ").font(semibold(18.0)));
             ui.label(RichText::new(trf("Version {version}", &[("version", &VERSION)])).color(t.text_secondary));
+            // PINTAZ-ABOUT: required credit (Apache-2.0 change notice; ArtCraft brand licence)
+            ui.label(egui::RichText::new("by PINTAZ").strong());
+            ui.label("Based on FigCraft by Storytold (ArtCraft), Apache-2.0. Changes by PINTAZ TECHNOLOGIES.");
         });
     });
     ui.add_space(12.0);
     ui.label(tr(
-        "Interface design and prototyping. A free, open-source, clean-room design tool written from scratch in Rust, part of the ArtCraft Crafting Apps.",
+        "Interface design and prototyping. A free, open-source, clean-room design tool written from scratch in Rust, part of the Z Apps.",
     ));
     ui.add_space(8.0);
-    ui.hyperlink_to("getartcraft.com/apps/figcraft", "https://getartcraft.com/apps/figcraft");
-    ui.hyperlink_to(tr("Join us on Discord"), "https://discord.gg/artcraft");
+    ui.hyperlink_to("github.com/danish0440/figz", "https://github.com/danish0440/figz");
+    ui.hyperlink_to(tr("Join us on GitHub"), "https://github.com/danish0440/figz/issues");
     ui.add_space(8.0);
     ui.label(
-        RichText::new(tr("Dual-licensed MIT OR Apache-2.0. Made by the ArtCraft team and community.")).color(t.text_secondary).font(regular(11.0)),
+        RichText::new(tr("Dual-licensed MIT OR Apache-2.0. Made by the upstream team and community.")).color(t.text_secondary).font(regular(11.0)),
     );
 }
 
@@ -128,7 +131,7 @@ pub fn show(app: &mut FigApp, ctx: &Context) {
     let t = Tokens::get(ctx);
     if app.ui.about {
         let mut open = true;
-        window(tr("About FigCraft"), ctx).open(&mut open).show(ctx, |ui| {
+        window(tr("About FigZ"), ctx).open(&mut open).show(ctx, |ui| {
             ui.set_width(ABOUT_WIDTH);
             tab_strip(ui, &t, &AboutTab::ALL, AboutTab::label, &mut app.ui.about_tab);
             ui.add_space(12.0);
@@ -168,12 +171,12 @@ pub fn show(app: &mut FigApp, ctx: &Context) {
             }
             // Where the app registers itself as the opener of invite links (Windows).
             if let Some(on) = app.session.invite_links_on() {
-                if crate::widgets::checkbox(ui, on, tr("Open invite links in FigCraft")) {
+                if crate::widgets::checkbox(ui, on, tr("Open invite links in FigZ")) {
                     app.run("collab.registerLinks", json!({"on": !on}));
                 }
                 crate::widgets::label(
                     ui,
-                    tr("figcraft:// links from a browser, chat or email open this app and join the session."),
+                    tr("figz:// links from a browser, chat or email open this app and join the session."),
                     t.text_secondary,
                 );
             }
@@ -193,8 +196,8 @@ pub fn show(app: &mut FigApp, ctx: &Context) {
                 if let Some(url) = crate::widgets::text_field_named(ui, egui::Id::new("pref_publish_server"), &prefs.publish_server, 220.0, name) {
                     app.run("pref.publishServer", json!({"url": url}));
                 }
-                let usual = prefs.publish_server == figcraft_engine::live::DEFAULT_SERVER;
-                if crate::widgets::button(ui, tr("Reset"), false, !usual).on_hover_text(tr("Back to the FigCraft server")).clicked() {
+                let usual = prefs.publish_server == figz_engine::live::DEFAULT_SERVER;
+                if crate::widgets::button(ui, tr("Reset"), false, !usual).on_hover_text(tr("Back to the FigZ server")).clicked() {
                     app.run("pref.publishServer", json!({}));
                 }
             });
@@ -314,7 +317,7 @@ const PREVIEW_ROWS: usize = 5;
 /// Open the Rename layers dialog for `ids` (several layers: Cmd/Ctrl+R, F2, the context menu).
 pub(crate) fn open_batch_rename(app: &mut FigApp, ids: &[NodeId]) {
     let Ok(doc) = app.session.doc() else { return };
-    let ids = figcraft_engine::cmd::edit::z_sorted(doc, ids);
+    let ids = figz_engine::cmd::edit::z_sorted(doc, ids);
     app.ui.batch_rename = Some(BatchRenameUi { ids, start: 1, ..Default::default() });
 }
 
@@ -336,7 +339,7 @@ fn batch_rename_dialog(app: &mut FigApp, ctx: &Context) {
     let Some(mut b) = app.ui.batch_rename.clone() else { return };
     let t = Tokens::get(ctx);
     let find = (!b.find.is_empty()).then_some(b.find.as_str());
-    let rename = figcraft_engine::rename::BatchRename::new(find, b.regex, &b.to, find.is_none().then_some(b.to.as_str()), Some(f64::from(b.start)));
+    let rename = figz_engine::rename::BatchRename::new(find, b.regex, &b.to, find.is_none().then_some(b.to.as_str()), Some(f64::from(b.start)));
     let n = b.ids.len();
     let ready = rename.is_ok() && !(b.find.is_empty() && b.to.is_empty());
     let preview: Vec<(String, String)> = match (&rename, app.session.doc()) {

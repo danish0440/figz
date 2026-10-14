@@ -1,15 +1,15 @@
 //! `.fig` files through the file commands. The importer's own tests (fixtures built in code) are
-//! in `figcraft_format::fig`; the local check here runs only when `FIGCRAFT_FIG_SAMPLES` names a
+//! in `figz_format::fig`; the local check here runs only when `FIGZ_FIG_SAMPLES` names a
 //! folder of `.fig` files with their frames' PNG exports next to them.
 
-use figcraft_doc::{ExportFormat, NodeKind};
+use figz_doc::{ExportFormat, NodeKind};
 use serde_json::json;
 
 use crate::Session;
 
 #[test]
 fn damaged_fig_files_fail_cleanly() {
-    let dir = std::env::temp_dir().join(format!("figcraft-fig-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("figz-fig-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("broken.fig");
     std::fs::write(&path, b"fig-kiwi\x65\0\0\0\xff\xff\xff\x7fjunk").unwrap();
@@ -19,11 +19,11 @@ fn damaged_fig_files_fail_cleanly() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Local only (`FIGCRAFT_FIG_SAMPLES`): each file opens without warnings, instances link to their
+/// Local only (`FIGZ_FIG_SAMPLES`): each file opens without warnings, instances link to their
 /// mains, and each top frame's 1× PNG export is close to the export saved next to the file.
 #[test]
 fn local_samples_match_their_exports() {
-    let Some(dir) = std::env::var_os("FIGCRAFT_FIG_SAMPLES") else { return };
+    let Some(dir) = std::env::var_os("FIGZ_FIG_SAMPLES") else { return };
     let Ok(dir) = std::fs::read_dir(dir) else { return };
     for p in dir.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "fig")) {
         let mut s = Session::new();

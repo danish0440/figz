@@ -1,6 +1,6 @@
 //! Pages.
 
-use figcraft_doc::*;
+use figz_doc::*;
 use serde_json::{Value, json};
 
 use super::{CommandSpec, ok};

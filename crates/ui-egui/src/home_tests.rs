@@ -5,8 +5,8 @@
 
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Shape};
-use figcraft_engine::Session;
-use figcraft_engine::templates::TEMPLATES;
+use figz_engine::Session;
+use figz_engine::templates::TEMPLATES;
 use serde_json::json;
 
 use crate::home::{Section, cached_thumbnails};
@@ -215,7 +215,7 @@ fn a_first_run_offers_templates_on_recents_and_recent_files_replace_them() {
     assert_eq!(u.app.session.doc().unwrap().name, "Landing page");
     // With a recent file, the list shows in the row's place.
     u.app.ui.home = true;
-    u.app.session.prefs.recent_files = vec!["/tmp/ridgeline.figcraft".into()];
+    u.app.session.prefs.recent_files = vec!["/tmp/ridgeline.figz".into()];
     let s = settle(&mut u);
     assert!(has_text(&s, "Recent files") && has_text(&s, "ridgeline"));
     assert!(!has_text(&s, "Start from a template") && !has_text(&s, "See all templates"));
@@ -245,7 +245,7 @@ fn the_getting_started_card_closes_stays_closed_and_comes_back_from_help() {
     assert!(!has_text(&s, "Getting started") && !has_text(&s, "Draw a frame"));
     assert!(has_text(&s, "Start from a template"), "the rest of the screen stays");
     // The preference is kept with the others, so it stays closed next time.
-    let kept: figcraft_engine::Prefs = serde_json::from_value(serde_json::to_value(&u.app.session.prefs).unwrap()).unwrap();
+    let kept: figz_engine::Prefs = serde_json::from_value(serde_json::to_value(&u.app.session.prefs).unwrap()).unwrap();
     assert!(kept.getting_started_dismissed);
     // Help ▸ Getting started: back on the home screen, from wherever.
     u.app.run("file.new", json!({}));

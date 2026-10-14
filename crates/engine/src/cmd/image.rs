@@ -1,7 +1,7 @@
 //! Image paints: adjustment presets, built in and saved in the file.
 
-use figcraft_color::{ImageFilters, PaintKind};
-use figcraft_doc::{Document, ImagePreset};
+use figz_color::{ImageFilters, PaintKind};
+use figz_doc::{Document, ImagePreset};
 use serde_json::{Value, json};
 
 use super::{CommandSpec, ok};

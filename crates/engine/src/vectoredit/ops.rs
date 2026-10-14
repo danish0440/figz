@@ -2,9 +2,9 @@
 //! deleting, cutting and joining. Pure functions on a [`VectorNetwork`]; the session wrappers in
 //! `vectoredit.rs` re-fit the node afterwards.
 
-use figcraft_doc::*;
-use figcraft_geom::kurbo::{CubicBez, ParamCurve};
-use figcraft_geom::{Affine, Point, Vec2};
+use figz_doc::*;
+use figz_geom::kurbo::{CubicBez, ParamCurve};
+use figz_geom::{Affine, Point, Vec2};
 
 fn tvec(t: (f64, f64)) -> Vec2 {
     Vec2::new(t.0, t.1)
@@ -494,7 +494,7 @@ pub fn cut_vertex(net: &mut VectorNetwork, vi: usize) -> Vec<usize> {
 /// Returns the new ends.
 /// shortcut: crossings within 1% of a segment's ends are skipped; cut those at the point instead.
 pub fn cut_across(net: &mut VectorNetwork, a: Point, b: Point) -> Vec<usize> {
-    use figcraft_geom::kurbo::{Line, PathSeg};
+    use figz_geom::kurbo::{Line, PathSeg};
     if !(a.x.is_finite() && a.y.is_finite() && b.x.is_finite() && b.y.is_finite()) || (b - a).hypot() < 1e-9 {
         return vec![];
     }

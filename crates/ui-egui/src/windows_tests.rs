@@ -2,7 +2,7 @@
 //! one has unsaved changes, and the main window takes over another window instead of quitting.
 
 use egui::{RawInput, ViewportEvent, ViewportId, ViewportInfo};
-use figcraft_engine::Session;
+use figz_engine::Session;
 use serde_json::json;
 
 use crate::{FigApp, NoServices};

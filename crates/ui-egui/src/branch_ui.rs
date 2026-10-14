@@ -7,9 +7,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use egui::{Align2, CornerRadius, Id, Rect, Sense, Ui, pos2, vec2};
-use figcraft_doc::{Document, NodeId};
-use figcraft_engine::branches::{self, BranchState, Review, Side, SideChanges};
-use figcraft_engine::devcompare::ChangeKind;
+use figz_doc::{Document, NodeId};
+use figz_engine::branches::{self, BranchState, Review, Side, SideChanges};
+use figz_engine::devcompare::ChangeKind;
 use serde_json::json;
 
 use crate::FigApp;

@@ -1,6 +1,6 @@
-//! The FigCraft egui frontend.
+//! The FigZ egui frontend.
 //!
-//! A thin shell over [`figcraft_engine::Session`]: panels read engine state and act by running
+//! A thin shell over [`figz_engine::Session`]: panels read engine state and act by running
 //! commands; the canvas forwards pointer events to the engine's tools and draws overlays. Nothing
 //! below this crate knows about egui, so the frontend can be replaced.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
@@ -157,8 +157,8 @@ mod windows_tests;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use figcraft_doc::NodeId;
-use figcraft_engine::Session;
+use figz_doc::NodeId;
+use figz_engine::Session;
 use serde_json::{Value, json};
 
 pub use control::{ControlReply, ControlRequest};
@@ -196,13 +196,13 @@ pub trait Services {
     fn emergency_save(&mut self, _session: &Session) {}
     /// Keep the preferences now (the installed plugins or their settings changed), as the app
     /// does when it quits.
-    fn save_prefs(&mut self, _prefs: &figcraft_engine::Prefs) {}
+    fn save_prefs(&mut self, _prefs: &figz_engine::Prefs) {}
     /// The OS or browser language as a tag ("es-ES"), for the "system" language preference.
     fn system_language(&self) -> Option<String> {
         None
     }
     /// The controller buttons held now on any controller: bit i is standard gamepad layout index i
-    /// (0 the bottom face button … 16 home; `figcraft_doc::proto::GAMEPAD_BUTTONS`). The prototype
+    /// (0 the bottom face button … 16 home; `figz_doc::proto::GAMEPAD_BUTTONS`). The prototype
     /// player asks every frame while its prototype has gamepad triggers.
     fn gamepad_held(&mut self) -> u32 {
         0
@@ -296,7 +296,7 @@ pub struct UiState {
     pub preferences: bool,
     pub shortcuts_panel: bool,
     /// The Keyboard shortcuts panel's tab and search text.
-    pub shortcuts_tab: figcraft_engine::keymap::Group,
+    pub shortcuts_tab: figz_engine::keymap::Group,
     pub shortcuts_query: String,
     /// An opacity digit just typed and when (a second one soon after makes an exact percentage).
     pub opacity_digit: Option<(u32, f64)>,
@@ -343,9 +343,9 @@ pub struct UiState {
     /// The Export dialog is open.
     pub export_preview: bool,
     /// The Export dialog's PDF print options (bleed, marks, CMYK).
-    pub pdf_print: figcraft_doc::PrintSettings,
+    pub pdf_print: figz_doc::PrintSettings,
     /// The Color profile dialog is open, with this profile chosen.
-    pub color_profile: Option<figcraft_color::ColorProfile>,
+    pub color_profile: Option<figz_color::ColorProfile>,
     /// The open style picker.
     pub style_picker: Option<style_picker::Picker>,
     /// The style picker shows colour styles as a grid of swatches.
@@ -371,7 +371,7 @@ pub struct UiState {
     /// Dev Mode: annotations on the canvas and the ready-for-dev list.
     pub dev: dev_mode::DevUi,
 
-    /// What FigCraft last put on the system clipboard: when the clipboard still holds it, a paste
+    /// What FigZ last put on the system clipboard: when the clipboard still holds it, a paste
     /// uses our copied layers; anything else there (an image, SVG, text) came from another app.
     pub last_copy: Option<String>,
     /// When (UI clock, seconds) open documents next get an autosave checkpoint.
@@ -412,7 +412,7 @@ impl Default for UiState {
             about_tab: dialogs::AboutTab::About,
             preferences: false,
             shortcuts_panel: false,
-            shortcuts_tab: figcraft_engine::keymap::Group::Essential,
+            shortcuts_tab: figz_engine::keymap::Group::Essential,
             shortcuts_query: String::new(),
             opacity_digit: None,
             home: false,
@@ -441,7 +441,7 @@ impl Default for UiState {
             render_ms: 0.0,
             quit: false,
             export_preview: false,
-            pdf_print: figcraft_doc::PrintSettings::default(),
+            pdf_print: figz_doc::PrintSettings::default(),
             color_profile: None,
             style_picker: None,
             style_grid: false,
@@ -472,7 +472,7 @@ impl Default for UiState {
     }
 }
 
-/// The whole FigCraft UI.
+/// The whole FigZ UI.
 pub struct FigApp {
     pub session: Session,
     pub ui: UiState,
@@ -500,7 +500,7 @@ pub struct FigApp {
     /// The other windows (desktop app).
     pub windows: windows::Windows,
     /// `window.new` / `window.focus` asked for by commands, for the end of the frame.
-    window_requests: Vec<figcraft_engine::UiRequest>,
+    window_requests: Vec<figz_engine::UiRequest>,
     /// Commands waiting for a server ([`FigApp::run_background`]) and what to do with their results.
     waiting: Vec<(String, Done)>,
 }
@@ -541,7 +541,7 @@ impl FigApp {
     }
 
     /// Show command `id`'s error.
-    fn failed(&mut self, id: &str, e: &figcraft_engine::EngineError) {
+    fn failed(&mut self, id: &str, e: &figz_engine::EngineError) {
         let msg = e.to_string();
         log::warn!("{id}: {msg}");
         self.toast(msg.clone());
@@ -591,7 +591,7 @@ impl FigApp {
         if let Some((c, p, rev)) = &self.ui.text_preview
             && c == command
             && *p == params
-            && (*rev == revision || figcraft_engine::textpreview::active(&self.session))
+            && (*rev == revision || figz_engine::textpreview::active(&self.session))
         {
             return;
         }
@@ -664,7 +664,7 @@ impl FigApp {
                 "panel.assets" => self.ui.left_tab = LeftTab::Assets,
                 "panel.versionHistory" => versions::open(self),
                 "view.devCompare" => {
-                    self.ui.dev.compare = r.data.get("id").and_then(figcraft_engine::params::id_of).map(dev_compare::CompareView::new);
+                    self.ui.dev.compare = r.data.get("id").and_then(figz_engine::params::id_of).map(dev_compare::CompareView::new);
                 }
                 "panel.libraries" => {
                     self.ui.left_tab = LeftTab::Assets;
@@ -684,7 +684,7 @@ impl FigApp {
                 "dialog.saveAs" => self.save_as_dialog(),
                 "dialog.colorProfile" => self.ui.color_profile = self.session.doc().ok().map(|d| d.color_profile),
                 "present" => {
-                    if let Some(start) = r.data.get("start").and_then(figcraft_engine::params::id_of) {
+                    if let Some(start) = r.data.get("start").and_then(figz_engine::params::id_of) {
                         let mut p = present::Presenter::new(start);
                         p.view = self.ui.present_view;
                         self.ui.present = Some(p);
@@ -712,18 +712,18 @@ impl FigApp {
                     }
                 }
                 "preview" => {
-                    if let Some(start) = r.data.get("start").and_then(figcraft_engine::params::id_of) {
+                    if let Some(start) = r.data.get("start").and_then(figz_engine::params::id_of) {
                         self.ui.preview = Some(present::Pane::new(start, &self.session));
                     }
                 }
                 "preview.close" => self.ui.preview = None,
-                "open.help" => self.services.open_url("https://getartcraft.com/apps/figcraft"),
+                "open.help" => self.services.open_url("https://github.com/danish0440/figz"),
                 "layers.collapseAll" => layers::collapse_all(self),
                 "contextMenu" => self.ui.key_menu = true,
                 "selectArea" => self.start_key_box(),
                 "layers.rename" => {
                     let ids: Vec<NodeId> =
-                        r.data.get("ids").and_then(Value::as_array).into_iter().flatten().filter_map(figcraft_engine::params::id_of).collect();
+                        r.data.get("ids").and_then(Value::as_array).into_iter().flatten().filter_map(figz_engine::params::id_of).collect();
                     if ids.len() > 1 {
                         dialogs::open_batch_rename(self, &ids);
                     } else {
@@ -790,7 +790,7 @@ impl FigApp {
 
     pub fn save_as_dialog(&mut self) {
         let name = self.session.doc().map(|d| d.name.clone()).unwrap_or_else(|_| "Untitled".into());
-        if let Some(p) = self.services.pick_save(i18n::tr("Save as"), &format!("{name}.figcraft"), &["figcraft"]) {
+        if let Some(p) = self.services.pick_save(i18n::tr("Save as"), &format!("{name}.figz"), &["figz"]) {
             let ps = p.to_string_lossy().to_string();
             if self.run("file.saveAs", json!({"path": ps})).is_some() {
                 self.toast(i18n::trf("Saved {name}", &[("name", &p.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default())]));
@@ -800,7 +800,7 @@ impl FigApp {
 
     pub fn save(&mut self) {
         // A branch tab saves its main file.
-        let tab = figcraft_engine::branches::file_tab(&self.session);
+        let tab = figz_engine::branches::file_tab(&self.session);
         if self.session.docs.get(tab).is_some_and(|d| d.path.is_some()) {
             if self.run("file.save", json!({})).is_some() {
                 self.toast(i18n::tr("Saved"));
@@ -812,7 +812,7 @@ impl FigApp {
 
     pub fn open_dialog(&mut self) {
         if let Some(p) =
-            self.services.pick_open(i18n::tr("Open"), &["figcraft", "fig", "json", "svg", "png", "jpg", "jpeg", "webp", "gif", "tif", "tiff"])
+            self.services.pick_open(i18n::tr("Open"), &["figz", "fig", "json", "svg", "png", "jpg", "jpeg", "webp", "gif", "tif", "tiff"])
         {
             let ps = p.to_string_lossy().to_string();
             if self.run("file.open", json!({"path": ps})).is_some() {
@@ -825,7 +825,7 @@ impl FigApp {
         let exts: &[&str] = if place {
             &["png", "jpg", "jpeg", "webp", "gif", "tif", "tiff"]
         } else {
-            &["svg", "png", "jpg", "jpeg", "webp", "gif", "tif", "tiff", "figcraft", "fig"]
+            &["svg", "png", "jpg", "jpeg", "webp", "gif", "tif", "tiff", "figz", "fig"]
         };
         if let Some(p) = self.services.pick_open(if place { i18n::tr("Place image") } else { i18n::tr("Import") }, exts) {
             let ps = p.to_string_lossy().to_string();
@@ -874,7 +874,7 @@ impl FigApp {
         if !self.fonts_installed {
             theme::install_fonts(ctx, false, 0);
             self.fonts_installed = true;
-        } else if figcraft_text::system_fonts_scanned() {
+        } else if figz_text::system_fonts_scanned() {
             // Once the system fonts are indexed: faces for names in scripts the UI fonts lack, and
             // for each CJK script once something shows it.
             let installed = self.script_fonts.map_or(0, |(s, _)| s);
@@ -980,7 +980,7 @@ impl FigApp {
         if self.ui.icon_gallery {
             icons::gallery(&ctx);
         }
-        theme::set_doc_profile(&ctx, self.session.doc().map_or(figcraft_color::ColorProfile::Srgb, |d| d.color_profile));
+        theme::set_doc_profile(&ctx, self.session.doc().map_or(figz_color::ColorProfile::Srgb, |d| d.color_profile));
         widgets::set_nudge(&ctx, self.session.prefs.nudge_small, self.session.prefs.nudge_big);
         // The Inspect tab measures on hover without Alt.
         self.session.tool.redlines = self.ui.right_tab == RightTab::Inspect;
@@ -1155,12 +1155,12 @@ impl FigApp {
             "versionHistory": self.ui.versions.open,
             "branchReview": self.ui.branch_review.as_ref().map(|r| json!({"id": r.id, "picks": r.picks, "mode": if r.mode == dev_compare::Mode::Overlay { "overlay" } else { "sideBySide" }})),
             "devCompare": self.ui.dev.compare.as_ref().map(|c| json!({"id": c.id, "mode": if c.mode == dev_compare::Mode::Overlay { "overlay" } else { "sideBySide" }, "split": c.split})),
-            "devFocus": self.session.ds().ok().and_then(figcraft_engine::DocState::focused),
+            "devFocus": self.session.ds().ok().and_then(figz_engine::DocState::focused),
             "annotationFilter": self.ui.dev.categories.id(),
             "colorProfileDialog": self.ui.color_profile.map(|p| p.id()),
             "stylePicker": self.ui.style_picker.as_ref().map(|p| p.slot().key()),
             "stylePickerView": if self.ui.style_grid { "grid" } else { "list" },
-            "textPreview": figcraft_engine::textpreview::active(&self.session),
+            "textPreview": figz_engine::textpreview::active(&self.session),
             "comments": {
                 "open": self.ui.comments.open,
                 "draft": self.ui.comments.draft.as_ref().map(|d| [d.0, d.1]),
@@ -1177,9 +1177,9 @@ impl FigApp {
             "canvas": {
                 "rect": [self.canvas.rect.min.x, self.canvas.rect.min.y, self.canvas.rect.max.x, self.canvas.rect.max.y],
                 "renderWork": self.canvas.render_work.map(|w| match w {
-                    figcraft_render::Work::Reused => json!({"kind": "reused"}),
-                    figcraft_render::Work::Partial { pixels } => json!({"kind": "partial", "pixels": pixels}),
-                    figcraft_render::Work::Full => json!({"kind": "full"}),
+                    figz_render::Work::Reused => json!({"kind": "reused"}),
+                    figz_render::Work::Partial { pixels } => json!({"kind": "partial", "pixels": pixels}),
+                    figz_render::Work::Full => json!({"kind": "full"}),
                 }),
             },
             "live": live::inspect(self),

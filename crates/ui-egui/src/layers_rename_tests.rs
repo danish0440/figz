@@ -3,8 +3,8 @@
 //! Enter commits and Escape cancels.
 
 use egui::{Event, Key, Modifiers};
-use figcraft_doc::NodeId;
-use figcraft_engine::Session;
+use figz_doc::NodeId;
+use figz_engine::Session;
 use serde_json::json;
 
 use crate::layers_drag_tests::Ui;

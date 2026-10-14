@@ -5,10 +5,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use figcraft_doc::color::{BlendMode, Color, ColorStop, Gradient, GradientKind, ImageScaleMode, Paint, PaintKind};
-use figcraft_doc::geom::{Affine, Point};
-use figcraft_doc::proto::{Action, Direction, Easing, Flow, Interaction, KeyMods, Overflow, OverlayPosition, ScrollPosition, Transition, Trigger};
-use figcraft_doc::*;
+use figz_doc::color::{BlendMode, Color, ColorStop, Gradient, GradientKind, ImageScaleMode, Paint, PaintKind};
+use figz_doc::geom::{Affine, Point};
+use figz_doc::proto::{Action, Direction, Easing, Flow, Interaction, KeyMods, Overflow, OverlayPosition, ScrollPosition, Transition, Trigger};
+use figz_doc::*;
 use serde_json::Value;
 
 use super::kiwi::{Kind, Kv, Schema, Type, encode};
@@ -705,7 +705,7 @@ fn normalize(n: &mut Node, ix: &dyn Fn(NodeId) -> NodeId) {
         n.stroke.cap_end = n.stroke.cap_start;
     }
     for it in &mut n.interactions {
-        figcraft_doc::proto::walk_mut(&mut it.actions, &mut |a| match a {
+        figz_doc::proto::walk_mut(&mut it.actions, &mut |a| match a {
             Action::Navigate { dest, .. }
             | Action::OpenOverlay { dest, .. }
             | Action::SwapOverlay { dest }
@@ -990,7 +990,7 @@ fn junk_documents_never_panic() {
             });
             match &mut n.kind {
                 NodeKind::Vector { network } => {
-                    network.segments.push(figcraft_doc::Segment::line(0, 99));
+                    network.segments.push(figz_doc::Segment::line(0, 99));
                     if let Some(v) = network.vertices.first_mut() {
                         v.x = f64::NAN;
                     }
@@ -1041,7 +1041,7 @@ fn link(doc: &mut Document) {
     }
 }
 
-/// Local only (`FIGCRAFT_FIG_SAMPLES`): each sample imported, exported and imported again comes
+/// Local only (`FIGZ_FIG_SAMPLES`): each sample imported, exported and imported again comes
 /// back the same, apart from what the export leaves out (shared style links, variables).
 #[test]
 fn local_samples_round_trip() {

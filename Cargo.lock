@@ -1406,18 +1406,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97b65636e5b9ef369943878ac74335ba1c55c1cb6adbf1e2c293c624248d693"
 
 [[package]]
-name = "figcraft"
+name = "figz"
 version = "0.5.1"
 dependencies = [
  "arboard",
  "eframe",
  "egui",
  "env_logger",
- "figcraft-collab-net",
- "figcraft-engine",
- "figcraft-format",
- "figcraft-text",
- "figcraft-ui-egui",
+ "figz-collab-net",
+ "figz-engine",
+ "figz-format",
+ "figz-text",
+ "figz-ui-egui",
  "image",
  "log",
  "rfd",
@@ -1429,27 +1429,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-cli"
+name = "figz-cli"
 version = "0.5.1"
 dependencies = [
- "figcraft-doc",
- "figcraft-engine",
- "figcraft-format",
- "figcraft-mcp",
- "figcraft-render",
- "figcraft-svg",
- "figcraft-text",
+ "figz-doc",
+ "figz-engine",
+ "figz-format",
+ "figz-mcp",
+ "figz-render",
+ "figz-svg",
+ "figz-text",
  "serde_json",
 ]
 
 [[package]]
-name = "figcraft-collab"
+name = "figz-collab"
 version = "0.5.1"
 dependencies = [
  "base64 0.22.1",
- "figcraft-color",
- "figcraft-doc",
- "figcraft-geom",
+ "figz-color",
+ "figz-doc",
+ "figz-geom",
  "imbl",
  "postcard",
  "serde",
@@ -1458,13 +1458,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-collab-net"
+name = "figz-collab-net"
 version = "0.5.1"
 dependencies = [
  "base64 0.22.1",
- "figcraft-collab",
- "figcraft-doc",
- "figcraft-engine",
+ "figz-collab",
+ "figz-doc",
+ "figz-engine",
  "getrandom 0.4.3",
  "js-sys",
  "log",
@@ -1481,7 +1481,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-color"
+name = "figz-color"
 version = "0.5.1"
 dependencies = [
  "kurbo",
@@ -1490,11 +1490,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-doc"
+name = "figz-doc"
 version = "0.5.1"
 dependencies = [
- "figcraft-color",
- "figcraft-geom",
+ "figz-color",
+ "figz-geom",
  "imbl",
  "serde",
  "serde_json",
@@ -1502,22 +1502,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-engine"
+name = "figz-engine"
 version = "0.5.1"
 dependencies = [
  "base64 0.22.1",
- "figcraft-collab",
- "figcraft-color",
- "figcraft-doc",
- "figcraft-format",
- "figcraft-geom",
- "figcraft-layout",
- "figcraft-pathops",
- "figcraft-pdf",
- "figcraft-plugin",
- "figcraft-render",
- "figcraft-svg",
- "figcraft-text",
+ "figz-collab",
+ "figz-color",
+ "figz-doc",
+ "figz-format",
+ "figz-geom",
+ "figz-layout",
+ "figz-pathops",
+ "figz-pdf",
+ "figz-plugin",
+ "figz-render",
+ "figz-svg",
+ "figz-text",
  "image",
  "log",
  "regex",
@@ -1529,11 +1529,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-format"
+name = "figz-format"
 version = "0.5.1"
 dependencies = [
- "figcraft-doc",
- "figcraft-pathops",
+ "figz-doc",
+ "figz-pathops",
  "flate2",
  "image",
  "ruzstd",
@@ -1544,7 +1544,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-geom"
+name = "figz-geom"
 version = "0.5.1"
 dependencies = [
  "kurbo",
@@ -1552,23 +1552,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-layout"
+name = "figz-layout"
 version = "0.5.1"
 dependencies = [
- "figcraft-doc",
- "figcraft-geom",
+ "figz-doc",
+ "figz-geom",
 ]
 
 [[package]]
-name = "figcraft-mcp"
+name = "figz-mcp"
 version = "0.5.1"
 dependencies = [
  "base64 0.22.1",
- "figcraft-collab-net",
- "figcraft-doc",
- "figcraft-engine",
- "figcraft-geom",
- "figcraft-render",
+ "figz-collab-net",
+ "figz-doc",
+ "figz-engine",
+ "figz-geom",
+ "figz-render",
  "image",
  "log",
  "proptest",
@@ -1576,24 +1576,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-pathops"
+name = "figz-pathops"
 version = "0.5.1"
 dependencies = [
- "figcraft-doc",
- "figcraft-geom",
+ "figz-doc",
+ "figz-geom",
  "linesweeper",
 ]
 
 [[package]]
-name = "figcraft-pdf"
+name = "figz-pdf"
 version = "0.5.1"
 dependencies = [
- "figcraft-color",
- "figcraft-doc",
- "figcraft-geom",
- "figcraft-pathops",
- "figcraft-render",
- "figcraft-text",
+ "figz-color",
+ "figz-doc",
+ "figz-geom",
+ "figz-pathops",
+ "figz-render",
+ "figz-text",
  "flate2",
  "krilla",
  "log",
@@ -1602,10 +1602,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-plugin"
+name = "figz-plugin"
 version = "0.5.1"
 dependencies = [
- "figcraft-color",
+ "figz-color",
  "serde",
  "serde_json",
  "sha2",
@@ -1615,15 +1615,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-render"
+name = "figz-render"
 version = "0.5.1"
 dependencies = [
  "crc32fast",
- "figcraft-color",
- "figcraft-doc",
- "figcraft-geom",
- "figcraft-pathops",
- "figcraft-text",
+ "figz-color",
+ "figz-doc",
+ "figz-geom",
+ "figz-pathops",
+ "figz-text",
  "image",
  "log",
  "moxcms",
@@ -1633,18 +1633,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-server"
+name = "figz-server"
 version = "0.5.1"
 dependencies = [
  "crc32fast",
  "ctrlc",
  "env_logger",
- "figcraft-collab",
- "figcraft-collab-net",
- "figcraft-doc",
- "figcraft-engine",
- "figcraft-format",
- "figcraft-plugin",
+ "figz-collab",
+ "figz-collab-net",
+ "figz-doc",
+ "figz-engine",
+ "figz-format",
+ "figz-plugin",
  "log",
  "rustix 1.1.5",
  "serde",
@@ -1657,27 +1657,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-svg"
+name = "figz-svg"
 version = "0.5.1"
 dependencies = [
  "base64 0.22.1",
- "figcraft-color",
- "figcraft-doc",
- "figcraft-geom",
- "figcraft-pathops",
- "figcraft-render",
- "figcraft-text",
+ "figz-color",
+ "figz-doc",
+ "figz-geom",
+ "figz-pathops",
+ "figz-render",
+ "figz-text",
  "flate2",
  "thiserror 2.0.21",
  "usvg",
 ]
 
 [[package]]
-name = "figcraft-text"
+name = "figz-text"
 version = "0.5.1"
 dependencies = [
- "figcraft-doc",
- "figcraft-geom",
+ "figz-doc",
+ "figz-geom",
  "harfrust 0.13.3",
  "log",
  "skrifa 0.47.0",
@@ -1686,21 +1686,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-ui-egui"
+name = "figz-ui-egui"
 version = "0.5.1"
 dependencies = [
  "base64 0.22.1",
  "egui",
  "egui_extras",
- "figcraft-color",
- "figcraft-doc",
- "figcraft-engine",
- "figcraft-format",
- "figcraft-geom",
- "figcraft-layout",
- "figcraft-pathops",
- "figcraft-render",
- "figcraft-text",
+ "figz-color",
+ "figz-doc",
+ "figz-engine",
+ "figz-format",
+ "figz-geom",
+ "figz-layout",
+ "figz-pathops",
+ "figz-render",
+ "figz-text",
  "image",
  "log",
  "serde",
@@ -1710,14 +1710,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "figcraft-web"
+name = "figz-web"
 version = "0.5.1"
 dependencies = [
  "eframe",
  "egui",
- "figcraft-collab-net",
- "figcraft-engine",
- "figcraft-ui-egui",
+ "figz-collab-net",
+ "figz-engine",
+ "figz-ui-egui",
  "log",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -5809,7 +5809,7 @@ checksum = "9440ea3e5aeabb0ac63af70daf835274065238cdd0cec83418f417eae38bacee"
 name = "xtask"
 version = "0.5.1"
 dependencies = [
- "figcraft-engine",
+ "figz-engine",
  "serde_json",
 ]
 

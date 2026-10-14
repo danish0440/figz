@@ -1,10 +1,10 @@
 # .deb and .rpm packages (nfpm: https://nfpm.goreleaser.com). Run by package.sh, which stages
 # the file tree, substitutes its path for ${STAGE} (nfpm doesn't expand env vars in `src`),
-# drops the lines marked `#cli` when the workspace has no apps/figcraft-cli, and exports VERSION,
-# NFPM_ARCH and FIGCRAFT_MAINTAINER.
+# drops the lines marked `#cli` when the workspace has no apps/figz-cli, and exports VERSION,
+# NFPM_ARCH and FIGZ_MAINTAINER.
 #
 #   nfpm package -f packaging/linux/nfpm.yaml -p deb -t dist/release/
-name: figcraft
+name: figz
 arch: ${NFPM_ARCH}
 platform: linux
 version: ${VERSION}
@@ -13,9 +13,9 @@ version_schema: semver
 release: 1
 section: graphics
 priority: optional
-maintainer: ${FIGCRAFT_MAINTAINER}
+maintainer: ${FIGZ_MAINTAINER}
 vendor: Learning Machines LLC
-homepage: https://getartcraft.com/apps/figcraft
+homepage: https://github.com/danish0440/figz
 license: MIT OR Apache-2.0
 description: |-
   Open-source, native interface design and prototyping tool.
@@ -66,11 +66,11 @@ overrides:
       - xdg-desktop-portal
 
 contents:
-  - src: ${STAGE}/usr/bin/figcraft
-    dst: /usr/bin/figcraft
+  - src: ${STAGE}/usr/bin/figz
+    dst: /usr/bin/figz
     file_info: { mode: 0755 }
-  - src: ${STAGE}/usr/bin/figcraft-cli #cli
-    dst: /usr/bin/figcraft-cli #cli
+  - src: ${STAGE}/usr/bin/figz-cli #cli
+    dst: /usr/bin/figz-cli #cli
     file_info: { mode: 0755 } #cli
   - src: ${STAGE}/usr/share/
     dst: /usr/share/

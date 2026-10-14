@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 
 use egui::{Align2, Color32, CornerRadius, Id, Rect, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
-use figcraft_engine::templates::{Kind, TEMPLATES, Template};
+use figz_engine::templates::{Kind, TEMPLATES, Template};
 use serde_json::json;
 
 use crate::FigApp;
@@ -144,7 +144,7 @@ pub fn show(app: &mut FigApp, ui: &mut Ui) {
 fn sidebar(app: &mut FigApp, ui: &mut Ui, t: &Tokens, left: Rect) {
     let mut y = left.min.y + 20.0;
     icons::paint(ui.painter(), Rect::from_min_size(pos2(left.min.x + 16.0, y), vec2(20.0, 20.0)), Icon::Logo, ACCENT);
-    ui.painter().text(pos2(left.min.x + 44.0, y + 10.0), Align2::LEFT_CENTER, "FigCraft", semibold(14.0), t.text);
+    ui.painter().text(pos2(left.min.x + 44.0, y + 10.0), Align2::LEFT_CENTER, "FigZ", semibold(14.0), t.text);
     y += 48.0;
     for (section, icon, label) in Section::ALL {
         let r = Rect::from_min_size(pos2(left.min.x + 8.0, y), vec2(SIDEBAR - 16.0, 32.0));
@@ -213,7 +213,7 @@ fn recents(app: &mut FigApp, ui: &mut Ui, t: &Tokens) {
     let (mut new_file, mut open) = (false, false);
     ui.horizontal(|ui| {
         new_file = action_card(ui, t, Icon::Plus, tr("New design file"), tr("Start from a blank canvas"));
-        open = action_card(ui, t, Icon::Page, tr("Open file"), tr("Open .figcraft, .svg or images"));
+        open = action_card(ui, t, Icon::Page, tr("Open file"), tr("Open .figz, .svg or images"));
     });
     if new_file {
         app.run("file.new", json!({}));
@@ -272,7 +272,7 @@ fn recents(app: &mut FigApp, ui: &mut Ui, t: &Tokens) {
 /// The file joined from the home screen (a code, or one of your online files) opened in a tab of
 /// its own: show it. (A join that was left is forgotten.)
 fn opened_join(app: &mut FigApp) {
-    match app.ui.live.home_join.map(|id| app.session.live.get(id).map(figcraft_engine::live::Live::syncing)) {
+    match app.ui.live.home_join.map(|id| app.session.live.get(id).map(figz_engine::live::Live::syncing)) {
         Some(Some(true)) => {
             app.ui.live.home_join = None;
             app.ui.home = false;
@@ -324,7 +324,7 @@ fn getting_started(app: &mut FigApp, ui: &mut Ui, t: &Tokens) {
 
 /// A command's shortcut as this platform writes it, as the keymap has it now.
 pub(crate) fn shortcut(command: &str) -> Option<String> {
-    crate::shortcuts::shortcut(command).map(|key| figcraft_engine::keymap::display(key, crate::shortcuts::platform()))
+    crate::shortcuts::shortcut(command).map(|key| figz_engine::keymap::display(key, crate::shortcuts::platform()))
 }
 
 /// `text` wrapped at `width`, at most `rows` lines (the last one ends with an ellipsis).
@@ -454,18 +454,18 @@ struct Thumb {
 struct Thumbs(BTreeMap<(&'static str, bool), Option<Thumb>>);
 
 /// Build `template` and render the top of its first page to fit a card.
-fn thumbnail(ctx: &egui::Context, template: &Template, background: figcraft_color::Color) -> Option<Thumb> {
+fn thumbnail(ctx: &egui::Context, template: &Template, background: figz_color::Color) -> Option<Thumb> {
     let doc = template.build(background).ok()?;
     let frames = doc.node(doc.first_page()?)?.children.clone();
-    let bounds = frames.iter().filter_map(|id| figcraft_render::export_bounds(&doc, *id)).reduce(|a, b| a.union(b))?;
+    let bounds = frames.iter().filter_map(|id| figz_render::export_bounds(&doc, *id)).reduce(|a, b| a.union(b))?;
     if !(bounds.width() > 0.0 && bounds.height() > 0.0) {
         return None;
     }
     // A page much taller than a card shows its top, as wide as the card.
     let (w, h) = (f64::from(CARD_W - 22.0), f64::from(THUMB_H - 22.0));
-    let area = figcraft_geom::Rect::new(bounds.x0, bounds.y0, bounds.x1, bounds.y1.min(bounds.y0 + bounds.width() * h / w * 1.5));
+    let area = figz_geom::Rect::new(bounds.x0, bounds.y0, bounds.x1, bounds.y1.min(bounds.y0 + bounds.width() * h / w * 1.5));
     let scale = (w / area.width()).min(h / area.height()) * f64::from(ctx.pixels_per_point());
-    let pix = figcraft_render::render_area(&doc, &frames, area, scale.min(1.0))?;
+    let pix = figz_render::render_area(&doc, &frames, area, scale.min(1.0))?;
     let image = crate::render_worker::screen_image(&pix, doc.color_profile);
     let texture = ctx.load_texture(format!("template-thumb-{}", template.id), image, egui::TextureOptions::LINEAR);
     Some(Thumb { texture, page: crate::theme::c32(background) })

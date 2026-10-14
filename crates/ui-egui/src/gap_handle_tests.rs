@@ -4,14 +4,14 @@
 //! in the panel does. Driven through egui headless.
 
 use egui::{Event, vec2};
-use figcraft_doc::{ContentAlign, MainAlign, NodeId};
-use figcraft_engine::Session;
+use figz_doc::{ContentAlign, MainAlign, NodeId};
+use figz_engine::Session;
 use serde_json::{Value, json};
 
 use crate::layers_drag_tests::Ui;
 
 fn id(v: Value) -> NodeId {
-    figcraft_engine::params::id_of(&v["id"]).unwrap()
+    figz_engine::params::id_of(&v["id"]).unwrap()
 }
 
 /// A 300 × 300 frame of three 120 × 60 rectangles with `props` on top of a horizontal layout

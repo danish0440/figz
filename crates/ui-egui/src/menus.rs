@@ -2,7 +2,7 @@
 //! Actions palette (⌘K / ⌘/).
 
 use egui::{Align2, Color32, CornerRadius, Id, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
-use figcraft_engine::catalog::{MENU, SEP};
+use figz_engine::catalog::{MENU, SEP};
 use serde_json::json;
 
 use crate::FigApp;
@@ -49,9 +49,9 @@ pub fn paste(app: &mut FigApp, event_text: Option<&str>) {
         // Text from elsewhere when it's newer than our copy, or when we have nothing to paste.
         if let Some(text) = sys_text.filter(|_| app.ui.last_copy.is_some() || app.session.clipboard.nodes.is_empty()) {
             // A comment's link opens its thread.
-            if text.trim().starts_with("figcraft://comment/") {
+            if text.trim().starts_with("figz://comment/") {
                 app.run("comment.open", json!({"link": text.trim()}));
-            } else if figcraft_engine::looks_like_svg(&text) {
+            } else if figz_engine::looks_like_svg(&text) {
                 use base64::Engine as _;
                 let b64 = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
                 app.run("file.import", json!({"data": b64, "name": "Pasted SVG.svg", "x": cx, "y": cy, "center": true}));
@@ -87,14 +87,14 @@ pub fn invoke(app: &mut FigApp, id: &str) {
         "edit.copyAsCss" => {
             let ids = app.session.selection();
             if let (Some(first), Ok(doc)) = (ids.first(), app.session.doc()) {
-                let css = figcraft_engine::codegen::code_for(doc, *first, figcraft_engine::codegen::CodeLang::Css);
+                let css = figz_engine::codegen::code_for(doc, *first, figz_engine::codegen::CodeLang::Css);
                 app.services.clipboard_set_text(&css);
                 app.toast(tr("Copied as CSS"));
             }
         }
         "edit.copyAsSvg" => {
             let ids = app.session.selection();
-            if let Some(svg) = app.session.doc().ok().and_then(|d| figcraft_svg_export(d, &ids)) {
+            if let Some(svg) = app.session.doc().ok().and_then(|d| figz_svg_export(d, &ids)) {
                 app.services.clipboard_set_text(&svg);
                 app.toast(tr("Copied as SVG"));
             }
@@ -102,11 +102,11 @@ pub fn invoke(app: &mut FigApp, id: &str) {
         "edit.copyAsPng" => {
             let ids = app.session.selection();
             if let Some((mut pix, profile)) =
-                app.session.doc().ok().and_then(|d| Some((figcraft_engine::cmd::file::copy_png(d, &ids)?, d.color_profile)))
+                app.session.doc().ok().and_then(|d| Some((figz_engine::cmd::file::copy_png(d, &ids)?, d.color_profile)))
             {
                 // Clipboard images are read as sRGB.
-                figcraft_render::to_srgb(&mut pix, profile);
-                let rgba = figcraft_render::to_rgba8(&pix);
+                figz_render::to_srgb(&mut pix, profile);
+                let rgba = figz_render::to_rgba8(&pix);
                 app.services.clipboard_set_png(pix.width(), pix.height(), &rgba);
                 app.toast(tr("Copied as PNG"));
             }
@@ -124,7 +124,7 @@ pub fn invoke(app: &mut FigApp, id: &str) {
         }
         "edit.copyLink" => {
             let ids = app.session.selection();
-            app.services.clipboard_set_text(&format!("figcraft://node/{}", ids.first().map(|i| i.0).unwrap_or(0)));
+            app.services.clipboard_set_text(&format!("figz://node/{}", ids.first().map(|i| i.0).unwrap_or(0)));
         }
         "edit.findReplace" => app.ui.find = Some((String::new(), String::new())),
         // From a menu the link is pasted into the Join dialog (`collab.join {link}` joins directly).
@@ -134,11 +134,11 @@ pub fn invoke(app: &mut FigApp, id: &str) {
         "edit.copy" | "edit.cut" => {
             let ids = app.session.selection();
             // SVG for other apps, taken before a cut removes the layers.
-            let svg = app.session.doc().ok().and_then(|d| figcraft_svg_export(d, &ids));
+            let svg = app.session.doc().ok().and_then(|d| figz_svg_export(d, &ids));
             app.run(id, json!({}));
             // Mirror to the system clipboard (SVG text, else a marker) and remember it, so a later
             // paste knows whether the clipboard still holds our layers.
-            let text = svg.unwrap_or_else(|| format!("figcraft://clipboard/{}", ids.len()));
+            let text = svg.unwrap_or_else(|| format!("figz://clipboard/{}", ids.len()));
             app.services.clipboard_set_text(&text);
             app.ui.last_copy = Some(text);
         }
@@ -156,14 +156,14 @@ pub fn invoke(app: &mut FigApp, id: &str) {
     }
 }
 
-fn figcraft_svg_export(doc: &figcraft_doc::Document, ids: &[figcraft_doc::NodeId]) -> Option<String> {
-    let bytes = figcraft_engine::cmd::file::export_bytes(doc, ids, figcraft_doc::ExportFormat::Svg, 1.0).ok()?;
+fn figz_svg_export(doc: &figz_doc::Document, ids: &[figz_doc::NodeId]) -> Option<String> {
+    let bytes = figz_engine::cmd::file::export_bytes(doc, ids, figz_doc::ExportFormat::Svg, 1.0).ok()?;
     String::from_utf8(bytes).ok()
 }
 
 /// Whether a menu id is available (registered in the engine or handled by the UI).
 pub fn available(id: &str) -> bool {
-    !id.is_empty() && (figcraft_engine::find_command(id).is_some() || UI_COMMANDS.contains(&id))
+    !id.is_empty() && (figz_engine::find_command(id).is_some() || UI_COMMANDS.contains(&id))
 }
 
 /// Draw one level of the main menu: `prefix` is the menu path ("File", "Edit/Copy as").
@@ -194,7 +194,7 @@ fn menu_level(app: &mut FigApp, ui: &mut Ui, prefix: &str) -> bool {
             }
             // One window in the browser.
             let enabled = available(m.id) && !(m.id == "window.new" && ui.ctx().embed_viewports());
-            let checked = figcraft_engine::cmd::view::checked(&app.session, m.id).unwrap_or(false);
+            let checked = figz_engine::cmd::view::checked(&app.session, m.id).unwrap_or(false);
             if item(ui, &i18n::menu_item(m.id, m.label), crate::shortcuts::shortcut(m.id).unwrap_or(""), enabled, checked, &t) && enabled {
                 clicked = Some(m.id);
             }
@@ -451,7 +451,7 @@ pub fn popups(app: &mut FigApp, ctx: &egui::Context) {
                     let secs: Vec<bool> = ids
                         .iter()
                         .filter_map(|i| doc.node(*i))
-                        .filter(|n| matches!(n.kind, figcraft_doc::NodeKind::Section { .. }))
+                        .filter(|n| matches!(n.kind, figz_doc::NodeKind::Section { .. }))
                         .map(|n| n.hides_contents())
                         .collect();
                     (!secs.is_empty()).then(|| if secs.iter().all(|h| *h) { tr("Show section contents") } else { tr("Hide section contents") })
@@ -562,8 +562,8 @@ fn select_layer_menu(app: &mut FigApp, ui: &mut Ui, pos: egui::Pos2, t: &Tokens)
     let p = app.to_page(pos);
     let Ok(ds) = app.session.ds() else { return false };
     let tol = 2.0 / ds.view.zoom.max(1e-6);
-    let layers: Vec<(figcraft_doc::NodeId, usize, String)> =
-        figcraft_doc::geometry::layers_at(&ds.doc, ds.page, p, tol, Some(&figcraft_engine::booleans::result_outline(&ds.doc, &ds.selection)))
+    let layers: Vec<(figz_doc::NodeId, usize, String)> =
+        figz_doc::geometry::layers_at(&ds.doc, ds.page, p, tol, Some(&figz_engine::booleans::result_outline(&ds.doc, &ds.selection)))
             .into_iter()
             .take(40)
             .filter_map(|(id, depth)| {
@@ -634,7 +634,7 @@ fn palette(app: &mut FigApp, ctx: &egui::Context) {
                         |label: &str, english: &str, id: &str| ql.is_empty() || [label, english, id].iter().any(|s| s.to_lowercase().contains(&ql));
                     let mut hits: Vec<(&str, std::borrow::Cow<str>, &str)> = Vec::new();
                     let menu_items = MENU.iter().filter(|m| UI_COMMANDS.contains(&m.id)).map(|m| (m.id, m.label));
-                    for (id, english) in figcraft_engine::all_commands().iter().map(|c| (c.id, c.label)).chain(menu_items) {
+                    for (id, english) in figz_engine::all_commands().iter().map(|c| (c.id, c.label)).chain(menu_items) {
                         let label = i18n::command(id, english);
                         if matches(&label, english, id) {
                             hits.push((id, label, crate::shortcuts::shortcut(id).unwrap_or("")));

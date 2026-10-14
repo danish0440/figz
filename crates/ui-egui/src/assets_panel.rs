@@ -16,9 +16,9 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use egui::{Align2, Color32, CornerRadius, Id, Pos2, Rect, Sense, Stroke, Ui, pos2, vec2};
-use figcraft_doc::{Document, NodeId, NodeKind, Style, StyleKind};
-use figcraft_engine::library;
-use figcraft_engine::library_server::{is_server_link, shown_path};
+use figz_doc::{Document, NodeId, NodeKind, Style, StyleKind};
+use figz_engine::library;
+use figz_engine::library_server::{is_server_link, shown_path};
 use serde_json::{Value, json};
 
 use crate::FigApp;
@@ -190,13 +190,13 @@ fn same_layers(a: &Document, b: &Document, id: NodeId) -> bool {
 }
 
 pub(crate) fn thumbnail(ctx: &egui::Context, doc: &Document, id: NodeId, px: f32) -> Option<egui::TextureHandle> {
-    let b = figcraft_render::export_bounds(doc, id)?;
+    let b = figz_render::export_bounds(doc, id)?;
     let side = b.width().max(b.height());
     if !(side.is_finite() && side > 0.0) {
         return None;
     }
     let scale = (f64::from(px) / side).min(2.0);
-    let pix = figcraft_render::render_node(doc, id, scale)?;
+    let pix = figz_render::render_node(doc, id, scale)?;
     let img = crate::render_worker::screen_image(&pix, doc.color_profile);
     Some(ctx.load_texture(format!("asset-thumb-{}", id.0), img, egui::TextureOptions::LINEAR))
 }
@@ -551,7 +551,7 @@ fn render_thumbs(ui: &Ui, w: f32, thumbs: &mut Thumbs, wanted: &[(Source, NodeId
         let Some(doc) = thumbs.docs.get(&key.0).cloned() else { continue };
         // A component set shows its default (top-left) variant.
         let shown = match doc.node(key.1).map(|n| &n.kind) {
-            Some(NodeKind::ComponentSet { .. }) => figcraft_engine::components::default_variant(&doc, key.1).unwrap_or(key.1),
+            Some(NodeKind::ComponentSet { .. }) => figz_engine::components::default_variant(&doc, key.1).unwrap_or(key.1),
             _ => key.1,
         };
         thumbs.map.insert(key.clone(), thumbnail(ui.ctx(), &doc, shown, px));
@@ -706,7 +706,7 @@ fn drag_family(doc: &Document, libs: &HashMap<String, Arc<Document>>, drag: &Ass
     if matches!(n.kind, NodeKind::ComponentSet { .. }) {
         return Some(n.name.clone());
     }
-    figcraft_engine::drop::swap_family(d, drag.component)
+    figz_engine::drop::swap_family(d, drag.component)
 }
 
 /// While a component is dragged: a ghost at the pointer and, over the canvas, the frame or auto
@@ -721,9 +721,9 @@ fn drag_feedback(app: &mut FigApp, ui: &mut Ui, doc: &Document, libs: &HashMap<S
     // With Alt: the instance under the pointer (never one inside the dragged component itself).
     let swap = at.filter(|_| alt).and_then(|(pt, page)| {
         let own = matches!(drag.src, Source::Local).then_some(drag.component);
-        figcraft_engine::drop::swap_target(doc, page, pt, drag_family(doc, libs, &drag).as_deref(), own)
+        figz_engine::drop::swap_target(doc, page, pt, drag_family(doc, libs, &drag).as_deref(), own)
     });
-    let slot = at.filter(|_| swap.is_none()).map(|(pt, page)| (pt, figcraft_engine::drop::slot(doc, page, pt)));
+    let slot = at.filter(|_| swap.is_none()).map(|(pt, page)| (pt, figz_engine::drop::slot(doc, page, pt)));
     let ov = &mut app.session.tool.overlay;
     ov.swap_target = swap;
     ov.drop_target = slot.as_ref().and_then(|(_, s)| (Some(s.parent) != page).then_some(s.parent));
@@ -984,7 +984,7 @@ fn enabled_libraries(app: &mut FigApp, ui: &mut Ui, w: f32, doc: &Document) {
     let t = Tokens::get(ui.ctx());
     title(ui, w, tr("Libraries in this file"));
     if doc.libraries.enabled.is_empty() {
-        hint(ui, tr("No libraries yet. Add a .figcraft file that was published as a library, or paste a team library's link."));
+        hint(ui, tr("No libraries yet. Add a .figz file that was published as a library, or paste a team library's link."));
     }
     let (mut remove, mut swap) = (None, None);
     let swappable = doc.libraries.enabled.len() > 1;
@@ -1089,7 +1089,7 @@ fn enabled_libraries(app: &mut FigApp, ui: &mut Ui, w: f32, doc: &Document) {
         });
     }
     if add
-        && let Some(p) = app.services.pick_open(tr("Add library"), &["figcraft"])
+        && let Some(p) = app.services.pick_open(tr("Add library"), &["figz"])
         && let Some(r) = app.run(ADD, json!({"path": p.to_string_lossy()}))
     {
         added(app, &r);

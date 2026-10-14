@@ -3,12 +3,12 @@
 //! `node.set`.
 
 use egui::{Align2, Color32, CornerRadius, Id, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
-use figcraft_color::Paint;
-use figcraft_doc::proto::{
+use figz_color::Paint;
+use figz_doc::proto::{
     Action, ConditionalBlock, Direction, Easing, GAMEPAD_BUTTONS, Interaction, KeyMods, Overflow, OverlayPosition, ScrollPosition, Transition,
     Trigger, is_gamepad_button,
 };
-use figcraft_doc::*;
+use figz_doc::*;
 use serde_json::{Value, json};
 
 use crate::FigApp;
@@ -128,7 +128,7 @@ fn transition_of(label: &str, cur: Transition) -> Transition {
 
 /// Destinations a "Change to" can pick: the variants next to the layer's component.
 fn variants_for(doc: &Document, id: NodeId) -> Vec<NodeId> {
-    let comp = figcraft_engine::components::owning_component(doc, id).or_else(|| match doc.node(id).map(|n| &n.kind) {
+    let comp = figz_engine::components::owning_component(doc, id).or_else(|| match doc.node(id).map(|n| &n.kind) {
         Some(NodeKind::Instance { component, .. }) => Some(*component),
         _ => None,
     });
@@ -209,7 +209,7 @@ pub(crate) fn action_of(label: &str, doc: &Document, page: NodeId, node: NodeId,
         "Navigate to" => Action::Navigate { dest: frame_dest?, preserve_scroll: matches!(cur, Some(Action::Navigate { preserve_scroll: true, .. })) },
         "Change to" => {
             let vs = variants_for(doc, node);
-            let mine = figcraft_engine::components::owning_component(doc, node);
+            let mine = figz_engine::components::owning_component(doc, node);
             Action::ChangeTo { dest: vs.iter().copied().find(|v| Some(*v) != mine).or(vs.first().copied())? }
         }
         "Back" => Action::Back,
@@ -226,7 +226,7 @@ pub(crate) fn action_of(label: &str, doc: &Document, page: NodeId, node: NodeId,
         "Close overlay" => Action::CloseOverlay,
         "Set variable" => {
             let v = doc.variables.variables.first()?;
-            let value = value_json(&figcraft_engine::cmd::proto_actions::start_value(&doc.variables, v));
+            let value = value_json(&figz_engine::cmd::proto_actions::start_value(&doc.variables, v));
             Action::SetVariable { variable: v.id.clone(), value, expr: None }
         }
         "Set variable mode" => {
@@ -237,7 +237,7 @@ pub(crate) fn action_of(label: &str, doc: &Document, page: NodeId, node: NodeId,
         }
         "Conditional" => Action::Conditional {
             blocks: vec![ConditionalBlock {
-                condition: Some(figcraft_engine::cmd::proto_actions::default_condition(&doc.variables)),
+                condition: Some(figz_engine::cmd::proto_actions::default_condition(&doc.variables)),
                 actions: vec![],
             }],
         },
@@ -455,7 +455,7 @@ fn settings(app: &mut FigApp, ui: &mut Ui, doc: &Document, page: NodeId) {
     row(ui, 32.0, |ui| {
         widgets::swatch(ui, &Paint::solid(bg), 16.0);
         if let Some(h) = widgets::text_field(ui, Id::new("proto_bg"), &bg.to_hex(), 96.0, "")
-            && let Some(c) = figcraft_color::Color::from_hex(&h)
+            && let Some(c) = figz_color::Color::from_hex(&h)
         {
             app.run("proto.settings", json!({"background": c.to_css_hex()}));
         }
@@ -469,7 +469,7 @@ const RESPONSIVE_TIP: &str =
 /// A device colour as a swatch paint.
 fn color_paint(c: proto::DeviceColor) -> Paint {
     let [r, g, b] = c.rgb;
-    Paint::solid(figcraft_color::Color::from_rgb8_const(r, g, b))
+    Paint::solid(figz_color::Color::from_rgb8_const(r, g, b))
 }
 
 /// The colours the device comes in: its swatch and a picker (each colour with its swatch).
@@ -644,7 +644,7 @@ fn editor_popover(app: &mut FigApp, ctx: &egui::Context, doc: &Document, page: N
                     widgets::sublabels(ui, if it.actions.len() > 1 { tr("Actions") } else { tr("Action") }, None);
                     let cx = Cx { doc, page, node, k };
                     crate::proto_editor::action_list(app, ui, &cx, &it.actions, &[]);
-                    if figcraft_doc::proto::walk(&it.actions).any(animates) {
+                    if figz_doc::proto::walk(&it.actions).any(animates) {
                         widgets::separator(ui);
                         animation_rows(app, ui, node, k, it);
                     }
@@ -919,7 +919,7 @@ pub(crate) fn action_fields(app: &mut FigApp, ui: &mut Ui, doc: &Document, page:
             });
             row(ui, 28.0, |ui| {
                 if widgets::checkbox(ui, background.is_some(), tr("Add background behind overlay")) {
-                    let bg = if background.is_some() { None } else { Some(figcraft_color::Color::new(0.0, 0.0, 0.0, 0.25)) };
+                    let bg = if background.is_some() { None } else { Some(figz_color::Color::new(0.0, 0.0, 0.0, 0.25)) };
                     set_action(app, slot, Action::OpenOverlay { dest, position, close_on_outside, background: bg, offset });
                 }
             });
@@ -927,7 +927,7 @@ pub(crate) fn action_fields(app: &mut FigApp, ui: &mut Ui, doc: &Document, page:
                 row(ui, 32.0, |ui| {
                     widgets::swatch(ui, &Paint::solid(bg), 16.0);
                     if let Some(h) = widgets::text_field(ui, slot.id("proto_ovbg"), &bg.to_hex(), 96.0, "")
-                        && let Some(c) = figcraft_color::Color::from_hex(&h)
+                        && let Some(c) = figz_color::Color::from_hex(&h)
                     {
                         set_action(app, slot, Action::OpenOverlay { dest, position, close_on_outside, background: Some(c), offset });
                     }

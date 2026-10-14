@@ -1,7 +1,7 @@
 //! Names in right-to-left and mixed-direction scripts (Hebrew, Arabic…) in the panels: layer, page,
 //! style, component and file names. egui has no bidi: it shapes each run of one font on its own,
 //! reversing right-to-left runs but leaving the words and runs of a name in logical order. So
-//! names go through [`figcraft_text::display`] (visual order, Arabic letters joined, mirrored
+//! names go through [`figz_text::display`] (visual order, Arabic letters joined, mirrored
 //! brackets) and every shown cluster is laid out as its own section, which egui's shaper leaves as
 //! it is. Names are elided at their end (the left end of a right-to-left name) and edited by
 //! [`single_line`], whose caret, clicks and selection follow the shown text (the arrow keys move
@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use egui::text::{ByteIndex, CCursor, CCursorRange, LayoutJob, LayoutSection, TextFormat, TextWrapping};
 use egui::{Color32, FontId, Galley, Id, Painter, Pos2, Rect, Response, Stroke, Ui, pos2, vec2};
-use figcraft_text::display::{self, VisualLine};
+use figz_text::display::{self, VisualLine};
 
 /// Shown (visual, elided) lines by name, font and width: elision measures many candidates, so the
 /// result is kept between frames (cleared when it grows large).
@@ -292,12 +292,12 @@ pub fn script_fallbacks(have: &dyn Fn(char) -> bool) -> Vec<(String, egui::FontD
         "Noto Sans",
     ];
     let mut out: Vec<(String, egui::FontData)> = Vec::new();
-    let mut taken: Vec<Arc<figcraft_text::Face>> = Vec::new();
+    let mut taken: Vec<Arc<figz_text::Face>> = Vec::new();
     for c in SAMPLES {
         if have(c) || taken.iter().any(|f| f.has_char(c)) {
             continue;
         }
-        let Some(face) = figcraft_text::face_with_char(c, &FAMILIES) else { continue };
+        let Some(face) = figz_text::face_with_char(c, &FAMILIES) else { continue };
         out.push((format!("system-{}-{}", face.family, face.style), crate::theme::font_data(&face)));
         taken.push(face);
     }

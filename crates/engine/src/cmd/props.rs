@@ -1,8 +1,8 @@
 //! Property editing: `node.set` and the shorthand keys every surface uses.
 
-use figcraft_color::{Color, Paint};
-use figcraft_doc::*;
-use figcraft_geom::{Affine, Point};
+use figz_color::{Color, Paint};
+use figz_doc::*;
+use figz_geom::{Affine, Point};
 use serde_json::{Map, Value, json};
 
 use crate::params::*;
@@ -148,7 +148,7 @@ pub fn brush_of(v: &Value) -> Option<Option<Brush>> {
         Value::Object(_) => serde_json::from_value::<Brush>(snake(v)).ok()?,
         _ => return None,
     };
-    figcraft_pathops::brush::preset(&b.preset).map(|_| Some(b.sanitized()))
+    figz_pathops::brush::preset(&b.preset).map(|_| Some(b.sanitized()))
 }
 
 /// A width profile from a preset name, points (`[[t, scale] | [t, left, right], ...]` or
@@ -329,7 +329,7 @@ pub fn apply(cmd: &str, doc: &mut Document, id: NodeId, props: &Map<String, Valu
             "rotation" => {
                 let deg = f64_of(v).ok_or_else(|| bad(cmd, "`rotation` must be degrees"))?;
                 let n = doc.get_mut(id)?;
-                n.transform = figcraft_geom::set_rotation_about_center(n.transform, n.width, n.height, deg);
+                n.transform = figz_geom::set_rotation_about_center(n.transform, n.width, n.height, deg);
             }
             "name" => doc.get_mut(id)?.name = string_val(v).ok_or_else(|| bad(cmd, "`name` must be a string"))?,
             "visible" => doc.get_mut(id)?.visible = v.as_bool().ok_or_else(|| bad(cmd, "`visible` must be a boolean"))?,
@@ -340,7 +340,7 @@ pub fn apply(cmd: &str, doc: &mut Document, id: NodeId, props: &Map<String, Valu
                 doc.get_mut(id)?.opacity = o.clamp(0.0, 1.0) as f32;
             }
             "blend" | "blendMode" => {
-                let b = v.as_str().and_then(figcraft_color::BlendMode::from_name).ok_or_else(|| bad(cmd, "unknown blend mode"))?;
+                let b = v.as_str().and_then(figz_color::BlendMode::from_name).ok_or_else(|| bad(cmd, "unknown blend mode"))?;
                 doc.get_mut(id)?.blend = b;
             }
             "fills" => doc.get_mut(id)?.fills = paints_of(v).ok_or_else(|| bad(cmd, "`fills` must be paints or colours"))?,
@@ -839,7 +839,7 @@ pub fn apply_text_style(cmd: &str, t: &mut TextData, start: usize, end: usize, k
         "fontFamily" => {
             let fam = string_val(v).ok_or_else(|| bad(cmd, "`fontFamily` must be a string"))?;
             // Keep the style if the new family has it, else the nearest.
-            let styles = figcraft_text::family_styles(&fam);
+            let styles = figz_text::family_styles(&fam);
             t.restyle(start, end, |s| {
                 s.font_family = fam.clone();
                 if !styles.is_empty() && !styles.contains(&s.font_style) {
@@ -1001,7 +1001,7 @@ fn set_sizing(cmd: &str, doc: &mut Document, id: NodeId, s: Sizing, horizontal: 
     }
     // A child can't fill an axis its parent hugs: the parent becomes fixed at its current size.
     // (The other way round, a parent that starts to hug fixes the children that filled it: see
-    // `figcraft_layout::coherent_sizing`, applied after every edit.)
+    // `figz_layout::coherent_sizing`, applied after every edit.)
     if s == Sizing::Fill
         && let Some(p) = parent
     {
@@ -1013,7 +1013,7 @@ fn set_sizing(cmd: &str, doc: &mut Document, id: NodeId, s: Sizing, horizontal: 
     }
     // Start from the sizing the layer has in effect (an auto-width text hugs both axes), so the
     // other axis keeps its meaning: an auto-width text set to fill its width wraps (auto height).
-    figcraft_layout::coherent_sizing(doc, id);
+    figz_layout::coherent_sizing(doc, id);
     let n = doc.get_mut(id)?;
     if horizontal {
         n.child_layout.sizing_h = s;
@@ -1050,16 +1050,16 @@ pub fn resize_node(doc: &mut Document, id: NodeId, w: f64, h: f64) -> Result<()>
     let (ow, oh) = (n.width, n.height);
     let group = n.kind.bounds_follow_children();
     let section = matches!(n.kind, NodeKind::Section { .. });
-    figcraft_layout::set_size(doc, id, w, h);
+    figz_layout::set_size(doc, id, w, h);
     if section {
         // Sections have no constraints: what's in them stays as it is.
     } else if group {
         let kx = if ow > 1e-9 { w / ow } else { 1.0 };
         let ky = if oh > 1e-9 { h / oh } else { 1.0 };
-        figcraft_layout::scale_group_children(doc, id, kx, ky);
+        figz_layout::scale_group_children(doc, id, kx, ky);
     } else {
         // In an auto layout frame this moves only the children that ignore auto layout.
-        figcraft_layout::apply_constraints(doc, id, ow, oh);
+        figz_layout::apply_constraints(doc, id, ow, oh);
     }
     Ok(())
 }
@@ -1074,7 +1074,7 @@ pub fn describe(doc: &Document, id: NodeId) -> Value {
         "type": n.kind.type_name(),
         "x": c[4], "y": c[5],
         "width": n.width, "height": n.height,
-        "rotation": figcraft_geom::round_to(figcraft_geom::rotation_degrees(n.transform), 3),
+        "rotation": figz_geom::round_to(figz_geom::rotation_degrees(n.transform), 3),
         "visible": n.visible, "locked": n.locked,
         "opacity": n.opacity, "blend": n.blend,
     });

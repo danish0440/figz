@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use egui::{Pos2, Shape};
-use figcraft_engine::Session;
+use figz_engine::Session;
 use serde_json::json;
 
 use crate::layers_drag_tests::Ui;
@@ -51,11 +51,11 @@ fn frame_outlines_and_slices_draw_when_shown() {
 }
 
 /// A job a few hundred milliseconds of rendering big.
-fn big_job(doc: &Arc<figcraft_doc::Document>, page: figcraft_doc::NodeId, scale: f64) -> crate::render_worker::Job {
+fn big_job(doc: &Arc<figz_doc::Document>, page: figz_doc::NodeId, scale: f64) -> crate::render_worker::Job {
     crate::render_worker::Job {
         doc: doc.clone(),
         page,
-        view: figcraft_render::View { origin: (0.0, 0.0), scale, width: 2400, height: 2400 },
+        view: figz_render::View { origin: (0.0, 0.0), scale, width: 2400, height: 2400 },
         outline: false,
         outline_extras: Default::default(),
         outlined: vec![],

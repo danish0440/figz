@@ -2,8 +2,8 @@
 //! like text drawn with the Text tool: white on a dark page unless a fill is named. A session
 //! without an interface (CLI, MCP, exports) keeps the model's black everywhere.
 
-use figcraft_color::{Color, Paint};
-use figcraft_doc::NodeId;
+use figz_color::{Color, Paint};
+use figz_doc::NodeId;
 use serde_json::{Value, json};
 
 use crate::Session;

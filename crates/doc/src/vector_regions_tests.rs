@@ -2,7 +2,7 @@
 //! region winning where regions overlap, curved edges, loops with segments stored backwards, a
 //! region's points and empty or damaged networks.
 
-use figcraft_geom::Point;
+use figz_geom::Point;
 
 use crate::vector::{Region, Segment, VectorNetwork, Vertex, WindingRule};
 
@@ -130,7 +130,7 @@ fn segments_stored_backwards_are_walked_the_right_way() {
     assert_eq!(n.region_at(p(100.0, 100.0)), Some(0));
     assert_eq!(n.region_at(p(300.0, 100.0)), None);
     // The walk equals the same loop stored consistently: one closed contour of the same area.
-    use figcraft_geom::Shape;
+    use figz_geom::Shape;
     let mut consistent = VectorNetwork::default();
     square(&mut consistent, 0.0, 0.0, 200.0);
     consistent.regions = n.regions.clone();

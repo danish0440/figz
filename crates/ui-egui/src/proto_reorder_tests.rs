@@ -4,9 +4,9 @@
 //! the editor.
 
 use egui::{Event, Pos2, vec2};
-use figcraft_doc::NodeId;
-use figcraft_doc::proto::Action;
-use figcraft_engine::Session;
+use figz_doc::NodeId;
+use figz_doc::proto::Action;
+use figz_engine::Session;
 use serde_json::json;
 
 use crate::list_drag::grip_id;

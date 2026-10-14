@@ -6,8 +6,8 @@
 
 use egui::layers::ShapeIdx;
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Shape, Vec2, emath::Rot2, pos2, vec2};
-use figcraft_doc::{Document, NodeId, NodeKind};
-use figcraft_geom::Point;
+use figz_doc::{Document, NodeId, NodeKind};
+use figz_geom::Point;
 
 use crate::FigApp;
 use crate::canvas::status_badge;

@@ -1,4 +1,4 @@
-//! FigCraft path operations.
+//! FigZ path operations.
 //!
 //! - [`boolean`]: Union, Subtract, Intersect and Exclude over any number of closed paths (robust
 //!   sweep-line topology from `linesweeper`); results use the even-odd rule.
@@ -18,8 +18,8 @@ pub mod width;
 #[cfg(test)]
 mod width_tests;
 
-use figcraft_doc::{BoolOp, StrokeAlign, StrokeCap, StrokeJoin, StrokeProps, VectorNetwork};
-use figcraft_geom::kurbo::{self, BezPath, Cap, Join, PathEl, PathSeg, Point, Shape, Vec2};
+use figz_doc::{BoolOp, StrokeAlign, StrokeCap, StrokeJoin, StrokeProps, VectorNetwork};
+use figz_geom::kurbo::{self, BezPath, Cap, Join, PathEl, PathSeg, Point, Shape, Vec2};
 
 #[derive(Debug, PartialEq)]
 pub enum PathOpsError {
@@ -57,7 +57,7 @@ pub fn closed(path: &BezPath) -> BezPath {
 }
 
 /// Every coordinate is finite and of a sane magnitude (the sweep needs bounded input).
-pub use figcraft_geom::measure::finite_path as finite;
+pub use figz_geom::measure::finite_path as finite;
 
 fn binary(a: &BezPath, b: &BezPath, op: linesweeper::BinaryOp) -> Result<BezPath, PathOpsError> {
     if a.elements().is_empty() && b.elements().is_empty() {
@@ -408,7 +408,7 @@ pub fn rect_side_strokes(w: f64, h: f64, sides: [f64; 4], align: StrokeAlign) ->
         StrokeAlign::Center => 0.5,
         StrokeAlign::Outside => 1.0,
     };
-    let rect = |x0: f64, y0: f64, x1: f64, y1: f64| figcraft_geom::Rect::new(x0, y0, x1, y1).to_path(0.1);
+    let rect = |x0: f64, y0: f64, x1: f64, y1: f64| figz_geom::Rect::new(x0, y0, x1, y1).to_path(0.1);
     let mut p = BezPath::new();
     // Outer box edges.
     let (ox0, oy0, ox1, oy1) = (-l * f, -t * f, w + r * f, h + b * f);
@@ -430,7 +430,7 @@ pub fn rect_side_strokes(w: f64, h: f64, sides: [f64; 4], align: StrokeAlign) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use figcraft_geom::Rect;
+    use figz_geom::Rect;
 
     fn sq(x: f64, y: f64, s: f64) -> BezPath {
         Rect::new(x, y, x + s, y + s).to_path(0.1)

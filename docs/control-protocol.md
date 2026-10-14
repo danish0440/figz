@@ -1,10 +1,10 @@
-# FigCraft control protocol
+# FigZ control protocol
 
-The desktop app can be driven by other programs (tests, scripts, `figcraft-cli mcp --attach`,
-sibling Crafting Apps) through a loopback socket:
+The desktop app can be driven by other programs (tests, scripts, `figz-cli mcp --attach`,
+sibling Z Apps) through a loopback socket:
 
 ```sh
-cargo run -p figcraft -- --control 7979 [file.figcraft|file.svg|image]
+cargo run -p figz -- --control 7979 [file.figz|file.svg|image]
 ```
 
 The app listens on `127.0.0.1:<port>` only. Each connection carries **newline-delimited JSON**:
@@ -19,7 +19,7 @@ reply:    {"id": 1, "ok": true, "result": ...}
 Requests are queued and run on the UI thread at the start of the next frame, so replies reflect the
 real UI state. A request that the UI doesn't answer within 60 s gets a timeout error. A line that is
 not JSON gets `{"id": null, "ok": false, "error": "bad JSON: …"}`. The implementation is in
-`crates/ui-egui/src/control.rs` (methods) and `apps/figcraft/src/control_server.rs` (socket).
+`crates/ui-egui/src/control.rs` (methods) and `apps/figz/src/control_server.rs` (socket).
 
 A request line is limited to **32 MiB before the newline**, including whitespace. The reader stops
 at the first excess byte, replies `{"id": null, "ok": false, "error": "message too large"}`, then
@@ -87,7 +87,7 @@ that `node.set` accepts are listed in [mcp.md](mcp.md#conventions-agents-must-kn
 
 ### `ui.inspect {}`
 
-UI state: panels and tabs (`panels`: the `left` and `right` panels' widths as asked for and whether the left one is closed, `leftCollapsed`), the cursor the canvas shows (`cursor`: a CSS cursor name such as `default`, `crosshair`, `ew-resize`, `grab`, `copy`, `not-allowed`, `zoom-in`, or one FigCraft draws: `rotate <degrees>`, `pen`, `pen-close`, `pen-add`, `pen-bend`, `eyedropper`, `comment`; `null` while the pointer is elsewhere or over something with a cursor of its own, a ruler guide or a gradient handle; the engine's own hint is `tool.overlay.cursor`), current tool (`tool`: its id, overlay hints and, for a selected
+UI state: panels and tabs (`panels`: the `left` and `right` panels' widths as asked for and whether the left one is closed, `leftCollapsed`), the cursor the canvas shows (`cursor`: a CSS cursor name such as `default`, `crosshair`, `ew-resize`, `grab`, `copy`, `not-allowed`, `zoom-in`, or one FigZ draws: `rotate <degrees>`, `pen`, `pen-close`, `pen-add`, `pen-bend`, `eyedropper`, `comment`; `null` while the pointer is elsewhere or over something with a cursor of its own, a ruler guide or a gradient handle; the engine's own hint is `tool.overlay.cursor`), current tool (`tool`: its id, overlay hints and, for a selected
 ellipse, its arc handles `arcHandles`, for a selected rectangle, frame, polygon or star, its corner radius and ratio handles `shapeHandles`; see [mcp.md](mcp.md#measuring-the-scale-tool-arc-handles-and-selecting)), canvas rect, dialogs, view, timings (`frameMs`,
 `renderMs`), frames drawn since start or the last `ui.set {resetFrameStats: true}` (`framesDrawn`;
 an idle window draws none) with the most frequent repaint requests behind them (`repaintCauses`:
@@ -125,7 +125,7 @@ document can't be edited now (`readOnly`: the "View only" or "Publishing" reason
 session itself is `engine.execute {command: "collab.peers"}` (sharing with a join code, hosting,
 joining and publishing are `collab.share`, `collab.host`, `collab.join` and `collab.publish`, opening invite links `collab.registerLinks`,
 see [mcp.md](mcp.md#live-sessions)). The app also joins the invite link it
-was started with (`figcraft "figcraft://join?…"`). `online` is the home screen's Online section:
+was started with (`figz "figz://join?…"`). `online` is the home screen's Online section:
 whether it shows (`open`), your online files as its rows read (`files: [{file, name, detail,
 shared, state, hasOwnerToken}]`; never a token or a link of yours), whether the servers are being
 asked (`checking`), how many couldn't say (`problems`), and the file whose removal is being
@@ -275,13 +275,13 @@ Close the app (every window, without asking about unsaved changes).
 
 ```sh
 port=7979
-figcraft --control $port &
+figz --control $port &
 exec 3<>/dev/tcp/127.0.0.1/$port
 echo '{"id":1,"method":"engine.execute","params":{"command":"frame.create","params":{"preset":"iPhone 16","x":0,"y":0}}}' >&3
 read -r reply <&3; echo "$reply"
-echo '{"id":2,"method":"ui.screenshot","params":{"path":"/tmp/figcraft.png"}}' >&3
+echo '{"id":2,"method":"ui.screenshot","params":{"path":"/tmp/figz.png"}}' >&3
 read -r reply <&3; echo "$reply"
 ```
 
-For agents, prefer the MCP server (`figcraft-cli mcp --attach 7979`, see `docs/mcp.md`): it wraps
+For agents, prefer the MCP server (`figz-cli mcp --attach 7979`, see `docs/mcp.md`): it wraps
 these methods in documented tools and returns images inline.

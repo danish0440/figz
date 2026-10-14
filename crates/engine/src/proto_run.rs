@@ -5,9 +5,9 @@
 
 use std::collections::HashMap;
 
-use figcraft_doc::proto::{Action, ConditionalBlock, Expr, Interaction};
-use figcraft_doc::{Document, NodeId, NodeKind, VariableType, VariableValue};
-use figcraft_geom::Rect;
+use figz_doc::proto::{Action, ConditionalBlock, Expr, Interaction};
+use figz_doc::{Document, NodeId, NodeKind, VariableType, VariableValue};
+use figz_geom::Rect;
 use serde_json::Value;
 
 use crate::cmd::styles::apply_bindings;

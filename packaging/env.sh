@@ -3,15 +3,15 @@
 #
 # Exports:
 #   ROOT                  workspace root
-#   VERSION               [workspace.package] version from Cargo.toml (override: FIGCRAFT_VERSION)
+#   VERSION               [workspace.package] version from Cargo.toml (override: FIGZ_VERSION)
 #   DIST                  output directory for release artifacts (default: $ROOT/dist/release)
-#   FIGCRAFT_BUILD_SHA    git commit baked into the binaries (apps/figcraft/build.rs)
-#   FIGCRAFT_BUILD_DATE   UTC build date, YYYY-MM-DD
+#   FIGZ_BUILD_SHA    git commit baked into the binaries (apps/figz/build.rs)
+#   FIGZ_BUILD_DATE   UTC build date, YYYY-MM-DD
 #   CARGO_TARGET_DIR      cargo's target dir (default: $ROOT/target)
 # Sets (not exported):
-#   BINS                  the binaries to build and ship: figcraft, plus figcraft-cli when the
-#                         workspace has apps/figcraft-cli
-#   HAS_CLI               1 when figcraft-cli is part of the build, else 0
+#   BINS                  the binaries to build and ship: figz, plus figz-cli when the
+#                         workspace has apps/figz-cli
+#   HAS_CLI               1 when figz-cli is part of the build, else 0
 #   CARGO_PKGS            `-p <bin>` arguments for cargo build
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,7 +26,7 @@ workspace_version() {
   ' "$ROOT/Cargo.toml"
 }
 
-VERSION="${FIGCRAFT_VERSION:-$(workspace_version)}"
+VERSION="${FIGZ_VERSION:-$(workspace_version)}"
 if [ -z "$VERSION" ]; then
   echo "error: could not read [workspace.package] version from $ROOT/Cargo.toml" >&2
   exit 1
@@ -37,18 +37,18 @@ DIST="${DIST:-$ROOT/dist/release}"
 mkdir -p "$DIST"
 export DIST
 
-if [ -z "${FIGCRAFT_BUILD_SHA:-}" ]; then
-  FIGCRAFT_BUILD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
+if [ -z "${FIGZ_BUILD_SHA:-}" ]; then
+  FIGZ_BUILD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
 fi
-export FIGCRAFT_BUILD_SHA
-export FIGCRAFT_BUILD_DATE="${FIGCRAFT_BUILD_DATE:-$(date -u +%Y-%m-%d)}"
+export FIGZ_BUILD_SHA
+export FIGZ_BUILD_DATE="${FIGZ_BUILD_DATE:-$(date -u +%Y-%m-%d)}"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
-# The headless CLI ships next to the app once apps/figcraft-cli exists.
-BINS=(figcraft)
+# The headless CLI ships next to the app once apps/figz-cli exists.
+BINS=(figz)
 HAS_CLI=0
-if [ -f "$ROOT/apps/figcraft-cli/Cargo.toml" ]; then
-  BINS+=(figcraft-cli)
+if [ -f "$ROOT/apps/figz-cli/Cargo.toml" ]; then
+  BINS+=(figz-cli)
   HAS_CLI=1
 fi
 CARGO_PKGS=()
@@ -58,7 +58,7 @@ unset _bin
 # The binary used for a `--version` smoke test: the CLI when shipped, else the app (which answers
 # --version before opening a window).
 smoke_bin() {
-  if [ "$HAS_CLI" = 1 ]; then echo figcraft-cli; else echo figcraft; fi
+  if [ "$HAS_CLI" = 1 ]; then echo figz-cli; else echo figz; fi
 }
 
 # Emit a GitHub Actions warning (plain stderr outside Actions).

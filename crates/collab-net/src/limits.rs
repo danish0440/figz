@@ -3,7 +3,7 @@
 use std::net::IpAddr;
 use std::time::Duration;
 
-/// Transport limits (the collaboration core has its own: [`figcraft_collab::Limits`]).
+/// Transport limits (the collaboration core has its own: [`figz_collab::Limits`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NetLimits {
     /// Sockets a host keeps open at once, joined or not.
@@ -59,9 +59,9 @@ impl Default for NetLimits {
     fn default() -> Self {
         Self {
             max_connections: 64,
-            max_client_message: figcraft_collab::Limits::default().max_message_bytes,
+            max_client_message: figz_collab::Limits::default().max_message_bytes,
             max_hello: 64 << 10,
-            max_server_message: figcraft_collab::Limits::default().max_message_bytes,
+            max_server_message: figz_collab::Limits::default().max_message_bytes,
             rate: 100.0,
             burst: 400.0,
             hello_timeout: Duration::from_secs(10),

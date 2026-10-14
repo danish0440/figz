@@ -1,20 +1,20 @@
 [package]
-name = "figcraft-svg"
+name = "figz-svg"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "FigCraft SVG export (shapes, gradients, images, strokes, effects as filters, text as outlines) and import (via usvg)"
+description = "FigZ SVG export (shapes, gradients, images, strokes, effects as filters, text as outlines) and import (via usvg)"
 
 [lints]
 workspace = true
 
 [dependencies]
-figcraft-geom = { workspace = true }
-figcraft-color = { workspace = true }
-figcraft-doc = { workspace = true }
-figcraft-render = { workspace = true }
-figcraft-text = { workspace = true }
-figcraft-pathops = { workspace = true }
+figz-geom = { workspace = true }
+figz-color = { workspace = true }
+figz-doc = { workspace = true }
+figz-render = { workspace = true }
+figz-text = { workspace = true }
+figz-pathops = { workspace = true }
 usvg = { workspace = true }
 base64 = { workspace = true }
 flate2 = { workspace = true }

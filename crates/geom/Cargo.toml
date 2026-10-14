@@ -1,9 +1,9 @@
 [package]
-name = "figcraft-geom"
+name = "figz-geom"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "FigCraft geometry: affine transforms, shape path builders (rounded/smoothed corners, polygons, stars, arcs)"
+description = "FigZ geometry: affine transforms, shape path builders (rounded/smoothed corners, polygons, stars, arcs)"
 
 [lints]
 workspace = true

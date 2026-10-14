@@ -110,14 +110,14 @@ pub fn tool_definitions() -> Vec<Value> {
         tool(
             "list_commands",
             "List commands",
-            "List FigCraft commands: id, label, menu path, shortcut, whether it is undoable, and a parameter description. Every menu item, panel action and shortcut is a command; run one with run_command (or several as one undo step with batch). Most commands act on `ids` when given, else on the selection. Use `filter` to narrow (e.g. \"align\", \"layout\", \"variable\", \"style\", \"component\", \"proto\").",
+            "List FigZ commands: id, label, menu path, shortcut, whether it is undoable, and a parameter description. Every menu item, panel action and shortcut is a command; run one with run_command (or several as one undo step with batch). Most commands act on `ids` when given, else on the selection. Use `filter` to narrow (e.g. \"align\", \"layout\", \"variable\", \"style\", \"component\", \"proto\").",
             obj(json!({"filter": string("Case-insensitive substring matched against id, label, menu path and parameter docs")}), &[]),
             true,
         ),
         tool(
             "run_command",
             "Run command",
-            "Execute one FigCraft command by id with JSON params (ids and params from list_commands). Mutating commands are one undo step each; a failing command leaves the document unchanged. Examples: {\"command\":\"align.left\",\"params\":{\"ids\":[3,4]}}, {\"command\":\"layout.add\",\"params\":{\"ids\":[2],\"direction\":\"vertical\"}}, {\"command\":\"style.create\",\"params\":{\"type\":\"paint\",\"name\":\"Brand/Primary\",\"from\":5}}. Returns the command's result (creation commands return {\"id\"}). Programmatic calls never open dialogs.",
+            "Execute one FigZ command by id with JSON params (ids and params from list_commands). Mutating commands are one undo step each; a failing command leaves the document unchanged. Examples: {\"command\":\"align.left\",\"params\":{\"ids\":[3,4]}}, {\"command\":\"layout.add\",\"params\":{\"ids\":[2],\"direction\":\"vertical\"}}, {\"command\":\"style.create\",\"params\":{\"type\":\"paint\",\"name\":\"Brand/Primary\",\"from\":5}}. Returns the command's result (creation commands return {\"id\"}). Programmatic calls never open dialogs.",
             obj(
                 json!({"command": string("Command id, e.g. node.create, align.left, component.create, file.export"), "params": {"type": "object", "description": "Command parameters (see list_commands)"}}),
                 &["command"],
@@ -236,7 +236,7 @@ pub fn tool_definitions() -> Vec<Value> {
         tool(
             "open_file",
             "Open file",
-            "Open a .figcraft or .json document (FigCraft or REST API file JSON), a .fig file (best effort, with `warnings` for what wasn't imported), an .svg (becomes vectors) or an image (becomes an image layer) as the active document. Returns the new document's summary.",
+            "Open a .figz or .json document (FigZ or REST API file JSON), a .fig file (best effort, with `warnings` for what wasn't imported), an .svg (becomes vectors) or an image (becomes an image layer) as the active document. Returns the new document's summary.",
             obj(
                 json!({
                     "path": string("File path"),
@@ -249,8 +249,8 @@ pub fn tool_definitions() -> Vec<Value> {
         tool(
             "save_file",
             "Save file",
-            "Save the active document as a .figcraft file. `path` is required the first time (an untitled document has no path); later saves reuse it.",
-            obj(json!({"path": string("Output .figcraft path")}), &[]),
+            "Save the active document as a .figz file. `path` is required the first time (an untitled document has no path); later saves reuse it.",
+            obj(json!({"path": string("Output .figz path")}), &[]),
             false,
         ),
         tool("undo", "Undo", "Undo the last change (one command, batch or gesture). Returns {undone: bool}.", empty(), false),
@@ -333,12 +333,12 @@ fn req_s<'a>(a: &'a Map<String, Value>, k: &str) -> Result<&'a str, String> {
 fn n_arg(a: &Map<String, Value>, k: &str) -> Result<Option<f64>, String> {
     match a.get(k) {
         None | Some(Value::Null) => Ok(None),
-        Some(v) => figcraft_engine::params::f64_of(v).map(Some).ok_or_else(|| format!("`{k}` must be a finite number")),
+        Some(v) => figz_engine::params::f64_of(v).map(Some).ok_or_else(|| format!("`{k}` must be a finite number")),
     }
 }
 
 fn id_arg(v: &Value) -> Result<u64, String> {
-    figcraft_engine::params::id_of(v).map(|i| i.0).ok_or_else(|| format!("{v} is not a layer id"))
+    figz_engine::params::id_of(v).map(|i| i.0).ok_or_else(|| format!("{v} is not a layer id"))
 }
 
 fn ids_arg(a: &Map<String, Value>, k: &str) -> Result<Option<Vec<u64>>, String> {
@@ -392,7 +392,7 @@ fn normalize_paintish(v: &mut Value, depth: usize) {
             }
         }
         Value::Object(o) => {
-            if let Some(c) = o.get("color").filter(|c| c.is_string()).and_then(figcraft_engine::params::color_of) {
+            if let Some(c) = o.get("color").filter(|c| c.is_string()).and_then(figz_engine::params::color_of) {
                 o.insert("color".into(), serde_json::to_value(c).unwrap_or(Value::Null));
             }
             let is_gradient = o.get("type").and_then(Value::as_str).is_some_and(|t| t.to_ascii_lowercase().contains("gradient"));
@@ -423,7 +423,7 @@ fn normalize_paintish(v: &mut Value, depth: usize) {
                 if let Some(Value::Array(stops)) = o.get_mut("stops") {
                     let n = stops.len();
                     for (i, s) in stops.iter_mut().enumerate() {
-                        if let Some(c) = figcraft_engine::params::color_of(s).filter(|_| s.is_string()) {
+                        if let Some(c) = figz_engine::params::color_of(s).filter(|_| s.is_string()) {
                             let pos = if n > 1 { i as f64 / (n - 1) as f64 } else { 0.0 };
                             *s = json!({"position": pos, "color": c});
                         } else {
@@ -777,7 +777,7 @@ fn pointer(b: &mut dyn Backend, a: &Map<String, Value>) -> Result<ToolResult, St
     p.insert("y".into(), json!(y));
     if let Some(to) = a.get("to").filter(|v| !v.is_null()) {
         let arr =
-            to.as_array().filter(|t| t.len() == 2 && t.iter().all(|v| figcraft_engine::params::f64_of(v).is_some())).ok_or("`to` must be [x, y]")?;
+            to.as_array().filter(|t| t.len() == 2 && t.iter().all(|v| figz_engine::params::f64_of(v).is_some())).ok_or("`to` must be [x, y]")?;
         p.insert("to".into(), Value::Array(arr.clone()));
     }
     if let Some(s) = n_arg(a, "steps")? {

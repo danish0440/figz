@@ -3,8 +3,8 @@
 //! (CLI, MCP, exports) has no theme and keeps the light default. Text drawn with the Text tool is
 //! white on a dark page and black on a light one.
 
-use figcraft_color::{Color, Paint};
-use figcraft_doc::{NodeId, NodeKind};
+use figz_color::{Color, Paint};
+use figz_doc::{NodeId, NodeKind};
 use serde_json::{Value, json};
 
 use crate::Session;
@@ -97,9 +97,9 @@ fn the_file_the_app_opened_with_takes_the_theme_once_it_is_known() {
 
 #[test]
 fn opened_files_keep_their_page_colour() {
-    let dir = std::env::temp_dir().join(format!("figcraft-theme-pages-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("figz-theme-pages-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("light.figcraft");
+    let path = dir.join("light.figz");
     let mut s = Session::new();
     ex(&mut s, "file.saveAs", json!({"path": path.to_string_lossy()}));
     let mut s = Session::empty();

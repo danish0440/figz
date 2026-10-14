@@ -7,7 +7,7 @@ use crate::Session;
 use crate::codegen::{CodeLang, code_for};
 use crate::params::id_of;
 
-fn id(v: Value) -> figcraft_doc::NodeId {
+fn id(v: Value) -> figz_doc::NodeId {
     id_of(&v["id"]).unwrap()
 }
 

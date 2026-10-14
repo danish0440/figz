@@ -2,8 +2,8 @@
 //! turned with a rotated frame) selects the frame and drags it in one undo step, hovering it
 //! highlights the frame, and labels of locked, hidden, deleted or other pages' frames do nothing.
 
-use figcraft_doc::NodeId;
-use figcraft_geom::Point;
+use figz_doc::NodeId;
+use figz_geom::Point;
 use serde_json::{Value, json};
 
 use crate::Session;
@@ -48,8 +48,8 @@ fn pressing_a_rotated_frames_label_selects_and_drags_the_frame() {
     let before = s.doc().unwrap().world_bounds(f).unwrap();
     s.pointer(&ev(PointerKind::Down, c)).unwrap();
     assert_eq!(s.selection(), vec![f]);
-    s.pointer(&ev(PointerKind::Move, c + figcraft_geom::Vec2::new(40.0, 25.0))).unwrap();
-    s.pointer(&ev(PointerKind::Up, c + figcraft_geom::Vec2::new(40.0, 25.0))).unwrap();
+    s.pointer(&ev(PointerKind::Move, c + figz_geom::Vec2::new(40.0, 25.0))).unwrap();
+    s.pointer(&ev(PointerKind::Up, c + figz_geom::Vec2::new(40.0, 25.0))).unwrap();
     let after = s.doc().unwrap().world_bounds(f).unwrap();
     assert!((after.x0 - before.x0 - 40.0).abs() < 1.0 && (after.y0 - before.y0 - 25.0).abs() < 1.0, "{before:?} → {after:?}");
     assert_eq!(s.ds().unwrap().history.undo.len(), undo + 1);

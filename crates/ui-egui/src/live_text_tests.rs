@@ -3,9 +3,9 @@
 //! `collab.peers` reports, and no frames while nothing moves.
 
 use egui::{Color32, Pos2, Shape};
-use figcraft_doc::NodeId;
-use figcraft_engine::figcraft_collab::EditingText;
-use figcraft_engine::live::{Event as LiveEvent, Presence, editing_hint};
+use figz_doc::NodeId;
+use figz_engine::figz_collab::EditingText;
+use figz_engine::live::{Event as LiveEvent, Presence, editing_hint};
 use serde_json::json;
 
 use crate::canvas::TextOnScreen;

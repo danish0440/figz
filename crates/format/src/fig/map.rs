@@ -9,8 +9,8 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use figcraft_doc::geom::{Affine, Point};
-use figcraft_doc::proto::{MAX_ACTION_DEPTH, MAX_EXPR_DEPTH};
+use figz_doc::geom::{Affine, Point};
+use figz_doc::proto::{MAX_ACTION_DEPTH, MAX_EXPR_DEPTH};
 use serde_json::{Map, Value, json};
 
 use super::kiwi::Kv;

@@ -1,12 +1,12 @@
-//! Paint behaviour, written from the public documentation of the design tools FigCraft follows:
+//! Paint behaviour, written from the public documentation of the design tools FigZ follows:
 //! fill stacking and opacity, paint and layer blend modes (pass-through and isolating groups),
 //! the four gradient kinds and their handles, image scale modes, rotation and adjustments, the
 //! colour models and the document colour profile. Each case says in one line why it expects what
 //! it does; where the documentation is silent the case says so and pins today's behaviour.
 //! Scenes are small and synthetic, drawn on a white page at 1×.
 
-use figcraft_color::{BlendMode, Color, ColorProfile, ColorStop, Gradient, GradientKind, Hsb, Hsl, ImageFilters, ImageScaleMode, Paint, PaintKind};
-use figcraft_doc::{Document, ImageData, NodeId, NodeKind, StrokeAlign};
+use figz_color::{BlendMode, Color, ColorProfile, ColorStop, Gradient, GradientKind, Hsb, Hsl, ImageFilters, ImageScaleMode, Paint, PaintKind};
+use figz_doc::{Document, ImageData, NodeId, NodeKind, StrokeAlign};
 
 use super::*;
 
@@ -431,7 +431,7 @@ fn image_scale_modes_place_the_image() {
     const RED: [u8; 3] = [255, 0, 0];
     const BLUE: [u8; 3] = [0, 0, 255];
     const PAGE: [u8; 3] = [255, 255, 255];
-    let crop = |x0, x1| Some(figcraft_color::ImagePaint::crop_from_rect(x0, 0.0, x1, 1.0));
+    let crop = |x0, x1| Some(figz_color::ImagePaint::crop_from_rect(x0, 0.0, x1, 1.0));
     // (why, mode, rotation, scale, crop, box, probes). The 20 × 10 image on a box at (0, 0).
     type Row<'a> = (&'a str, ImageScaleMode, i32, f64, Option<[f64; 6]>, Pt, Probes);
     let rows: Vec<Row> = vec![

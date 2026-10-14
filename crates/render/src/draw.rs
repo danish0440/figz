@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use figcraft_color::{BlendMode, Paint};
-use figcraft_doc::{Document, EffectKind, Node, NodeId, NodeKind, StrokeAlign};
-use figcraft_geom::{Affine, BezPath, Rect, Shape};
+use figz_color::{BlendMode, Paint};
+use figz_doc::{Document, EffectKind, Node, NodeId, NodeKind, StrokeAlign};
+use figz_geom::{Affine, BezPath, Rect, Shape};
 use tiny_skia::{FillRule, IntRect, Mask, MaskType, Pixmap, PixmapPaint, Transform};
 
 use crate::backdrop::{self, Under};
@@ -42,7 +42,7 @@ pub fn ts_transform(a: Affine) -> Transform {
 
 /// kurbo path → tiny-skia path (None when empty or degenerate).
 pub fn ts_path(p: &BezPath) -> Option<tiny_skia::Path> {
-    use figcraft_geom::kurbo::PathEl;
+    use figz_geom::kurbo::PathEl;
     let mut b = tiny_skia::PathBuilder::new();
     for el in p.elements() {
         match *el {
@@ -86,7 +86,7 @@ fn stroke_cache() -> &'static Mutex<PathCache> {
 
 pub(crate) fn hash_path(p: &BezPath, h: &mut impl Hasher) {
     for el in p.elements() {
-        use figcraft_geom::kurbo::PathEl::*;
+        use figz_geom::kurbo::PathEl::*;
         match *el {
             MoveTo(a) | LineTo(a) => (0u8, a.x.to_bits(), a.y.to_bits()).hash(h),
             QuadTo(a, b) => (1u8, a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits()).hash(h),
@@ -104,7 +104,7 @@ pub fn stroke_area(n: &Node, path: &BezPath, closed: bool) -> Arc<BezPath> {
         && matches!(n.kind, NodeKind::Rectangle | NodeKind::Frame | NodeKind::Component { .. } | NodeKind::Instance { .. })
         && n.corners.uniform() == Some(0.0)
     {
-        return Arc::new(figcraft_pathops::rect_side_strokes(n.width, n.height, sides, props.align));
+        return Arc::new(figz_pathops::rect_side_strokes(n.width, n.height, sides, props.align));
     }
     // Rect/ellipse inside/outside strokes without booleans: an even-odd ring of two outlines.
     if props.dashes.is_empty() && props.profile().is_none() && props.brush.is_none() && closed && props.align != StrokeAlign::Center {
@@ -124,12 +124,12 @@ pub fn stroke_area(n: &Node, path: &BezPath, closed: bool) -> Arc<BezPath> {
                     if n.corners.smoothing == 0.0 =>
                 {
                     let radii = n.corners.radii.map(|r| if r > 0.0 { (r - inset).max(0.0) } else { 0.0 });
-                    let mut p = figcraft_geom::rounded_rect(ww, hh, radii, 0.0);
+                    let mut p = figz_geom::rounded_rect(ww, hh, radii, 0.0);
                     p.apply_affine(Affine::translate((x0, y0)));
                     Some(p)
                 }
                 NodeKind::Ellipse { sweep, inner, .. } if sweep.abs() >= std::f64::consts::TAU - 1e-9 && inner == 0.0 => {
-                    Some(figcraft_geom::kurbo::Ellipse::from_rect(Rect::new(x0, y0, x0 + ww, y0 + hh)).to_path(0.05))
+                    Some(figz_geom::kurbo::Ellipse::from_rect(Rect::new(x0, y0, x0 + ww, y0 + hh)).to_path(0.05))
                 }
                 _ => None,
             }
@@ -171,7 +171,7 @@ pub fn stroke_area(n: &Node, path: &BezPath, closed: bool) -> Arc<BezPath> {
     if let Some(p) = locked(stroke_cache()).get(key) {
         return p;
     }
-    let out = Arc::new(figcraft_pathops::stroke_outline_of(path, props, closed, net));
+    let out = Arc::new(figz_pathops::stroke_outline_of(path, props, closed, net));
     locked(stroke_cache()).insert(key, out.clone());
     out
 }
@@ -182,11 +182,11 @@ pub fn stroke_fill(doc: &Document, n: &Node) -> Option<(Arc<BezPath>, FillRule)>
     if !n.has_visible_stroke() {
         return None;
     }
-    let closed = figcraft_doc::geometry::is_closed(n) || matches!(n.kind, NodeKind::BooleanOp { .. });
+    let closed = figz_doc::geometry::is_closed(n) || matches!(n.kind, NodeKind::BooleanOp { .. });
     let geom = match &n.kind {
         NodeKind::BooleanOp { .. } => node_outline(doc, n).map(|(p, _)| p),
         NodeKind::Text(_) | NodeKind::Group | NodeKind::Page { .. } => None,
-        _ => figcraft_doc::geometry::stroke_geometry(n),
+        _ => figz_doc::geometry::stroke_geometry(n),
     }?;
     Some((stroke_area(n, &geom, closed), stroke_rule(n, closed)))
 }
@@ -210,7 +210,7 @@ pub fn node_outline(doc: &Document, n: &Node) -> Option<(BezPath, FillRule)> {
 fn node_outline_at(doc: &Document, n: &Node, depth: usize) -> Option<(BezPath, FillRule)> {
     match &n.kind {
         NodeKind::BooleanOp { op } => {
-            let operands: Vec<(BezPath, figcraft_doc::BoolOp)> = n
+            let operands: Vec<(BezPath, figz_doc::BoolOp)> = n
                 .children
                 .iter()
                 .filter_map(|c| doc.node(*c))
@@ -224,17 +224,17 @@ fn node_outline_at(doc: &Document, n: &Node, depth: usize) -> Option<(BezPath, F
             Some((crate::boolean::fold_cached(&operands), FillRule::EvenOdd))
         }
         NodeKind::Text(_) => {
-            let (l, dy) = figcraft_text::layout_node(n)?;
+            let (l, dy) = figz_text::layout_node(n)?;
             let mut p = l.to_path();
             p.apply_affine(Affine::translate((0.0, dy)));
             Some((p, FillRule::Winding))
         }
         NodeKind::Vector { network } => {
             let rule =
-                if network.regions.iter().any(|r| r.winding == figcraft_doc::WindingRule::EvenOdd) { FillRule::EvenOdd } else { FillRule::Winding };
+                if network.regions.iter().any(|r| r.winding == figz_doc::WindingRule::EvenOdd) { FillRule::EvenOdd } else { FillRule::Winding };
             Some((network.fill_path(), rule))
         }
-        _ => figcraft_doc::geometry::shape_path(n).map(|p| (p, FillRule::Winding)),
+        _ => figz_doc::geometry::shape_path(n).map(|p| (p, FillRule::Winding)),
     }
 }
 
@@ -247,7 +247,7 @@ pub fn subtree_outline(doc: &Document, n: &Node, depth: usize) -> Option<(BezPat
         NodeKind::Group | NodeKind::Frame | NodeKind::Component { .. } | NodeKind::Instance { .. } if !n.children.is_empty() => {
             let mut out = BezPath::new();
             if n.kind.is_frame_like()
-                && let Some(p) = figcraft_doc::geometry::shape_path(n)
+                && let Some(p) = figz_doc::geometry::shape_path(n)
                 && n.fills.iter().any(|f| f.visible)
             {
                 out.extend(p.elements().iter().copied());
@@ -268,7 +268,7 @@ pub fn subtree_outline(doc: &Document, n: &Node, depth: usize) -> Option<(BezPat
 }
 
 fn device_rect(xf: Affine, r: Rect) -> Rect {
-    figcraft_geom::transform_rect_bbox(xf, r)
+    figz_geom::transform_rect_bbox(xf, r)
 }
 
 /// The area text may paint without its glyphs being looked at: its box, generously grown.
@@ -289,7 +289,7 @@ fn local_paint_bounds(doc: &Document, n: &Node, depth: usize, greek_scale: Optio
                 continue;
             }
             let cb = local_paint_bounds(doc, c, depth + 1, greek_scale);
-            r = r.union(figcraft_geom::transform_rect_bbox(c.transform, cb));
+            r = r.union(figz_geom::transform_rect_bbox(c.transform, cb));
         }
     }
     // Text can overflow its box.
@@ -298,10 +298,10 @@ fn local_paint_bounds(doc: &Document, n: &Node, depth: usize, greek_scale: Optio
         if greek_scale.is_some_and(|s| lod::greeked(n, s)) {
             return r;
         }
-        if let Some((l, dy)) = figcraft_text::layout_node(n)
+        if let Some((l, dy)) = figz_text::layout_node(n)
             && let Some(ink) = l.ink_bounds()
         {
-            r = r.union(ink + figcraft_geom::kurbo::Vec2::new(0.0, dy));
+            r = r.union(ink + figz_geom::kurbo::Vec2::new(0.0, dy));
         }
     }
     r
@@ -316,7 +316,7 @@ pub fn effect_margin(n: &Node) -> f64 {
         .map(|e| match &e.kind {
             EffectKind::LayerBlur(b) => b.max_radius() * 2.0,
             EffectKind::BackgroundBlur { .. } | EffectKind::Glass(_) => e.backdrop_radius() * 2.0,
-            EffectKind::DropShadow(s) => s.radius * 2.0 + s.spread.abs() * figcraft_doc::SPREAD_MITER_LIMIT + s.offset.0.abs() + s.offset.1.abs(),
+            EffectKind::DropShadow(s) => s.radius * 2.0 + s.spread.abs() * figz_doc::SPREAD_MITER_LIMIT + s.offset.0.abs() + s.offset.1.abs(),
             EffectKind::Texture(t) => t.radius.abs(),
             // A group's inner shadows are cast from around its pixels: a layer cut off at the
             // view would cast one from the cut.
@@ -333,7 +333,7 @@ pub fn paint_bounds(doc: &Document, id: NodeId) -> Option<Rect> {
     let n = doc.node(id)?;
     let m = effect_margin(n).abs();
     let local = local_paint_bounds(doc, n, 0, None);
-    Some(figcraft_geom::transform_rect_bbox(doc.world_transform(id), local).inflate(m, m))
+    Some(figz_geom::transform_rect_bbox(doc.world_transform(id), local).inflate(m, m))
 }
 
 fn needs_layer(n: &Node) -> bool {
@@ -499,7 +499,7 @@ fn draw_outline(ctx: &Ctx, pix: &mut Pixmap, n: &Node, xf: Affine, depth: usize)
     let boxed = matches!(n.kind, NodeKind::Rectangle) && n.corners.uniform() == Some(0.0) || n.kind.is_frame_like();
     if ctx.outline.bounds
         && !boxed
-        && let Some(tp) = ts_path(&figcraft_geom::kurbo::Shape::to_path(&n.local_rect(), 0.1))
+        && let Some(tp) = ts_path(&figz_geom::kurbo::Shape::to_path(&n.local_rect(), 0.1))
     {
         pix.stroke_path(&tp, &paint, &stroke, ts_transform(xf), None);
     }
@@ -529,7 +529,7 @@ fn draw_content(ctx: &Ctx, pix: &mut Pixmap, n: &Node, xf: Affine, depth: usize,
             }
         }
         NodeKind::Text(t) => {
-            let Some((layout, dy)) = figcraft_text::layout_node(n) else { return };
+            let Some((layout, dy)) = figz_text::layout_node(n) else { return };
             let gxf = xf * Affine::translate((0.0, dy));
             // Group glyphs by style so runs with their own fills paint with them.
             let mut by_style: HashMap<usize, BezPath> = HashMap::new();
@@ -551,9 +551,9 @@ fn draw_content(ctx: &Ctx, pix: &mut Pixmap, n: &Node, xf: Affine, depth: usize,
                 f(pix);
             }
             if n.has_visible_stroke() {
-                let props = figcraft_doc::StrokeProps { align: StrokeAlign::Center, ..n.stroke.clone() };
+                let props = figz_doc::StrokeProps { align: StrokeAlign::Center, ..n.stroke.clone() };
                 for path in keys.iter().filter_map(|k| by_style.get(k)) {
-                    let s = figcraft_pathops::stroke_center(path, props.weight, &props);
+                    let s = figz_pathops::stroke_center(path, props.weight, &props);
                     if let Some(ts) = ts_path(&s) {
                         fill_with(pix, &ts, &n.strokes, w, h, gxf, FillRule::Winding, ctx, None);
                     }
@@ -562,7 +562,7 @@ fn draw_content(ctx: &Ctx, pix: &mut Pixmap, n: &Node, xf: Affine, depth: usize,
             let _ = t;
         }
         _ => {
-            let closed = figcraft_doc::geometry::is_closed(n) || matches!(n.kind, NodeKind::BooleanOp { .. });
+            let closed = figz_doc::geometry::is_closed(n) || matches!(n.kind, NodeKind::BooleanOp { .. });
             let splatted = ctx.lod && closed && lod::splat_fills(pix, n, xf);
             let clips = n.clip && n.kind.is_frame_like() && !n.children.is_empty();
             // The outline fills, clips children to rounded corners and strokes booleans.
@@ -587,7 +587,7 @@ fn draw_content(ctx: &Ctx, pix: &mut Pixmap, n: &Node, xf: Affine, depth: usize,
             if n.has_visible_stroke() {
                 let geom = match &n.kind {
                     NodeKind::BooleanOp { .. } => outline.as_ref().map(|(p, _)| p.clone()),
-                    _ => figcraft_doc::geometry::stroke_geometry(n),
+                    _ => figz_doc::geometry::stroke_geometry(n),
                 };
                 if let Some(g) = geom {
                     let area = stroke_area(n, &g, closed);
@@ -622,7 +622,7 @@ fn draw_masked(ctx: &Ctx, pix: &mut Pixmap, mask_id: NodeId, content: &[NodeId],
         let mut m2 = m.clone();
         m2.is_mask = false;
         let mxf = xf * m2.transform;
-        if mask_type == figcraft_doc::MaskType::Vector {
+        if mask_type == figz_doc::MaskType::Vector {
             if let Some((outline, rule)) = subtree_outline(ctx.doc, &m2, depth + 1)
                 && let Some(path) = ts_path(&outline)
             {
@@ -643,7 +643,7 @@ fn draw_masked(ctx: &Ctx, pix: &mut Pixmap, mask_id: NodeId, content: &[NodeId],
         }
     }
     let Some(mut layer) = Pixmap::new(w, h) else { return };
-    let kind = if mask_type == figcraft_doc::MaskType::Luminance { MaskType::Luminance } else { MaskType::Alpha };
+    let kind = if mask_type == figz_doc::MaskType::Luminance { MaskType::Luminance } else { MaskType::Alpha };
     let mask = Mask::from_pixmap(mask_px.as_ref(), kind);
     {
         let under = Under { clip: Some(&mask), ..Under::new(pix, (0, 0), ctx.under) };

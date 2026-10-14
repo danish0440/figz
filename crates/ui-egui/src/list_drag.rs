@@ -170,7 +170,7 @@ pub fn move_flags(ui: &Ui, salt: &'static str, len: usize, from: usize, to: usiz
     ui.data_mut(|d| {
         let flags: Vec<Option<bool>> = (0..len).map(|i| d.get_temp::<bool>(Id::new((salt, i)))).collect();
         for (i, f) in flags.into_iter().enumerate() {
-            let j = figcraft_engine::cmd::lists::moved_index(i, from, to);
+            let j = figz_engine::cmd::lists::moved_index(i, from, to);
             match f {
                 Some(v) => {
                     d.insert_temp(Id::new((salt, j)), v);

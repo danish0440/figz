@@ -1,8 +1,8 @@
 //! Creating nodes.
 
-use figcraft_color::{ImageScaleMode, Paint};
-use figcraft_doc::*;
-use figcraft_geom::Point;
+use figz_color::{ImageScaleMode, Paint};
+use figz_doc::*;
+use figz_geom::Point;
 use serde_json::{Value, json};
 
 use super::{CommandSpec, ok};
@@ -158,8 +158,8 @@ fn create_kind(s: &mut Session, p: &Value, t: &str) -> Result<Value> {
 }
 
 /// Parse SVG path data (`M L H V C S Q T A Z`, absolute and relative) into a bezier path.
-pub fn parse_path_data(d: &str) -> Option<figcraft_geom::BezPath> {
-    figcraft_geom::BezPath::from_svg(d).ok()
+pub fn parse_path_data(d: &str) -> Option<figz_geom::BezPath> {
+    figz_geom::BezPath::from_svg(d).ok()
 }
 
 pub fn create(s: &mut Session, p: &Value) -> Result<Value> {
@@ -177,7 +177,7 @@ pub fn create(s: &mut Session, p: &Value) -> Result<Value> {
         return Err(bad(cmd, "sections go on the page or in other sections"));
     }
     // X and Y are in the frame's space: a group parent has none of its own.
-    let space = if pn.kind.bounds_follow_children() { doc.frame_relative(parent) } else { figcraft_geom::Affine::IDENTITY };
+    let space = if pn.kind.bounds_follow_children() { doc.frame_relative(parent) } else { figz_geom::Affine::IDENTITY };
     let x = num_or(p, "x", 0.0);
     let y = num_or(p, "y", 0.0);
     let (mut w, mut h) = match base {
@@ -192,9 +192,9 @@ pub fn create(s: &mut Session, p: &Value) -> Result<Value> {
     if let NodeKind::Vector { network } = &mut kind {
         if let Some(d) = string(p, "path") {
             let mut path = parse_path_data(&d).ok_or_else(|| bad(cmd, "`path` is not valid SVG path data"))?;
-            use figcraft_geom::Shape;
+            use figz_geom::Shape;
             let bb = path.bounding_box();
-            path.apply_affine(figcraft_geom::Affine::translate((-bb.x0, -bb.y0)));
+            path.apply_affine(figz_geom::Affine::translate((-bb.x0, -bb.y0)));
             *network = VectorNetwork::from_path(&path);
             if boolean(p, "closed") == Some(false) {
                 network.regions.clear();
@@ -207,7 +207,7 @@ pub fn create(s: &mut Session, p: &Value) -> Result<Value> {
             if pts.len() < 2 {
                 return Err(bad(cmd, "`points` needs at least two [x, y] pairs"));
             }
-            let bb = figcraft_geom::points_bounds(pts.iter().copied()).unwrap_or_default();
+            let bb = figz_geom::points_bounds(pts.iter().copied()).unwrap_or_default();
             let local: Vec<Point> = pts.iter().map(|q| Point::new(q.x - bb.x0, q.y - bb.y0)).collect();
             *network = VectorNetwork::from_points(&local, boolean(p, "closed").unwrap_or(false));
             w = bb.width();
@@ -245,12 +245,12 @@ pub fn create(s: &mut Session, p: &Value) -> Result<Value> {
     if app_text && let Some(fills) = crate::tools::readable_text_fills(doc, doc.page_of(parent).unwrap_or(page)) {
         node.fills = fills;
     }
-    node.transform = space.inverse() * figcraft_geom::Affine::translate((x + offset.0, y + offset.1));
+    node.transform = space.inverse() * figz_geom::Affine::translate((x + offset.0, y + offset.1));
     if base == "Arrow" {
         node.stroke.cap_end = StrokeCap::LineArrow;
     }
     if let NodeKind::Text(_) = node.kind
-        && let Some((tw, th)) = figcraft_text::auto_size(&node)
+        && let Some((tw, th)) = figz_text::auto_size(&node)
     {
         node.width = tw;
         node.height = th;
@@ -343,8 +343,8 @@ pub fn place_image(s: &mut Session, p: &Value) -> Result<Value> {
     let parent = id(p, "parent").unwrap_or(page);
     let ds = s.ds_mut()?;
     let doc = ds.doc_mut();
-    let (hash, iw, ih) = figcraft_format::add_image(doc, bytes).map_err(|e| bad(cmd, e.to_string()))?;
-    let profile = figcraft_render::images::profile_name(&hash, doc.images.get(&hash));
+    let (hash, iw, ih) = figz_format::add_image(doc, bytes).map_err(|e| bad(cmd, e.to_string()))?;
+    let profile = figz_render::images::profile_name(&hash, doc.images.get(&hash));
     let (iw, ih) = (f64::from(iw), f64::from(ih));
     // Fit large images into 1000 px like Figma does when placing.
     let k = (1000.0 / iw.max(ih)).min(1.0);
@@ -353,7 +353,7 @@ pub fn place_image(s: &mut Session, p: &Value) -> Result<Value> {
     let nid = doc.alloc_id();
     let name = string(p, "name").unwrap_or_else(|| "Image".into());
     let mut node = Node::new(nid, NodeKind::Rectangle, name, w, h);
-    node.transform = figcraft_geom::Affine::translate((num_or(p, "x", 0.0), num_or(p, "y", 0.0)));
+    node.transform = figz_geom::Affine::translate((num_or(p, "x", 0.0), num_or(p, "y", 0.0)));
     node.fills = vec![Paint::image(hash.clone(), mode)];
     doc.insert(node, parent, None)?;
     ds.selection = vec![nid];

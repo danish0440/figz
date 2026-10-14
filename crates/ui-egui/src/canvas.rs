@@ -3,10 +3,10 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, CornerRadius, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
-use figcraft_doc::{Document, NodeId, NodeKind};
-use figcraft_engine::Preedit;
-use figcraft_engine::tools::{PointerEvent, PointerKind, ToolId, selection_box, selection_frame};
-use figcraft_geom::Point;
+use figz_doc::{Document, NodeId, NodeKind};
+use figz_engine::Preedit;
+use figz_engine::tools::{PointerEvent, PointerKind, ToolId, selection_box, selection_frame};
+use figz_geom::Point;
 use serde_json::json;
 
 use crate::FigApp;
@@ -17,10 +17,10 @@ use crate::theme::{ACCENT, COMPONENT, Tokens, doc_c32, regular, semibold};
 pub struct CanvasState {
     pub rect: Rect,
     texture: Option<egui::TextureHandle>,
-    tex_view: Option<figcraft_render::View>,
+    tex_view: Option<figz_render::View>,
     submitted: Option<JobKey>,
     /// What the last canvas render had to do (shown by `ui.inspect`).
-    pub render_work: Option<figcraft_render::Work>,
+    pub render_work: Option<figz_render::Work>,
     dragging: bool,
     space_pan: bool,
     middle_pan: Option<(Pos2, f64, f64)>,
@@ -85,7 +85,7 @@ impl FigApp {
             return;
         }
         self.canvas.preedit = self.preedit_key().and_then(|key| {
-            let (doc, range, cursor) = figcraft_engine::textedit::preedit_doc(&self.session)?;
+            let (doc, range, cursor) = figz_engine::textedit::preedit_doc(&self.session)?;
             Some(PreeditView { key, doc: Arc::new(doc), range, cursor })
         });
     }
@@ -106,7 +106,7 @@ struct JobKey {
     scale: i64,
     size: (u32, u32),
     outline: bool,
-    outline_extras: figcraft_render::Outline,
+    outline_extras: figz_render::Outline,
     outlined: Vec<NodeId>,
     skip: Vec<NodeId>,
     solo: Option<NodeId>,
@@ -181,7 +181,7 @@ pub fn show(app: &mut FigApp, ui: &mut Ui, worker: &mut Worker) {
         };
         match &mut app.canvas.texture {
             Some(t) => t.set(done.image, filter),
-            None => app.canvas.texture = Some(ctx.load_texture("figcraft-canvas", done.image, filter)),
+            None => app.canvas.texture = Some(ctx.load_texture("figz-canvas", done.image, filter)),
         }
         app.canvas.tex_view = Some(done.view);
         app.canvas.render_work = Some(done.work);
@@ -240,7 +240,7 @@ pub fn show(app: &mut FigApp, ui: &mut Ui, worker: &mut Worker) {
 
 /// What the canvas says to screen readers: the selected layer ("Rectangle 1, Rectangle, 120 by 80,
 /// selected"), how many are selected, or the page with nothing selected.
-pub fn describe(s: &figcraft_engine::Session) -> String {
+pub fn describe(s: &figz_engine::Session) -> String {
     let Ok(ds) = s.ds() else { return String::new() };
     match ds.selection.as_slice() {
         [] => trf("{page}, nothing selected", &[("page", &ds.doc.node(ds.page).map(|p| p.name.as_str()).unwrap_or(tr("Page")))]),
@@ -285,7 +285,7 @@ fn request_render(app: &mut FigApp, worker: &mut Worker, ppp: f32) {
     let doc = app.preedit_view().map(|p| p.doc.clone()).unwrap_or_else(|| ds.doc.clone());
     let outlined = if ds.view.outlines_selection { ds.selection.clone() } else { vec![] };
     let proof = ds.view.proof_srgb && !doc.color_profile.is_srgb();
-    let outline_extras = figcraft_render::Outline { hidden: ds.view.outline_hidden, bounds: ds.view.outline_bounds, light: false };
+    let outline_extras = figz_render::Outline { hidden: ds.view.outline_hidden, bounds: ds.view.outline_bounds, light: false };
     let key = JobKey {
         doc: Arc::as_ptr(&doc) as usize,
         page: ds.page,
@@ -297,7 +297,7 @@ fn request_render(app: &mut FigApp, worker: &mut Worker, ppp: f32) {
         outlined: outlined.clone(),
         skip: vec![],
         solo: ds.focused(),
-        fonts: figcraft_text::layout_generation(),
+        fonts: figz_text::layout_generation(),
         proof,
     };
     if app.canvas.submitted.as_ref() == Some(&key) {
@@ -306,7 +306,7 @@ fn request_render(app: &mut FigApp, worker: &mut Worker, ppp: f32) {
     let job = Job {
         doc,
         page: ds.page,
-        view: figcraft_render::View { origin: (ox, oy), scale, width: w.min(16384), height: h.min(16384) },
+        view: figz_render::View { origin: (ox, oy), scale, width: w.min(16384), height: h.min(16384) },
         outline: ds.view.outlines,
         outline_extras,
         outlined,
@@ -502,7 +502,7 @@ pub fn open_context_menu(app: &mut FigApp, pos: Pos2, deep: bool) {
     if let Ok(ds) = app.session.ds() {
         let (doc, page, sel, zoom) = (ds.doc.clone(), ds.page, ds.selection.clone(), ds.view.zoom.max(1e-6));
         if let Some(leaf) = app.session.hit(&doc, page, p, 2.0 / zoom) {
-            let target = figcraft_doc::geometry::select_target(&doc, leaf, &sel, deep);
+            let target = figz_doc::geometry::select_target(&doc, leaf, &sel, deep);
             if !sel.contains(&target) {
                 app.session.set_selection(vec![target]);
             }
@@ -529,12 +529,12 @@ fn stroke(c: Color32, w: f32) -> Stroke {
 /// A text layer's layout placed on the canvas: where carets and selected characters show (yours
 /// and other people's in a live session).
 pub(crate) struct TextOnScreen {
-    pub layout: Arc<figcraft_text::TextLayout>,
+    pub layout: Arc<figz_text::TextLayout>,
     /// How many characters the text has.
     pub chars: usize,
     /// The layout's vertical offset in the box (vertical alignment).
     dy: f64,
-    world: figcraft_geom::Affine,
+    world: figz_geom::Affine,
 }
 
 impl TextOnScreen {
@@ -542,7 +542,7 @@ impl TextOnScreen {
     pub(crate) fn of(doc: &Document, id: NodeId) -> Option<Self> {
         let n = doc.node(id)?;
         let NodeKind::Text(t) = &n.kind else { return None };
-        let (layout, dy) = figcraft_text::layout_node(n)?;
+        let (layout, dy) = figz_text::layout_node(n)?;
         Some(Self { layout, chars: t.char_count(), dy, world: doc.world_transform(id) })
     }
 
@@ -592,7 +592,7 @@ fn quad(painter: &egui::Painter, q: [Pos2; 4], s: Stroke) {
 /// outline and the slot's name above its top-left corner, like a frame label (never over the
 /// content).
 fn slot_badges(app: &FigApp, painter: &egui::Painter, doc: &Document, sel: &[NodeId], drop: Option<NodeId>) {
-    use figcraft_engine::components::{owning_component, owning_instance, slot_name, slots_of};
+    use figz_engine::components::{owning_component, owning_instance, slot_name, slots_of};
     let mut roots: Vec<NodeId> = Vec::new();
     for id in sel {
         let root = match doc.node(*id).map(|n| &n.kind) {
@@ -653,7 +653,7 @@ fn swap_highlight(app: &FigApp, painter: &egui::Painter, doc: &Document, id: Nod
 /// The outline colour for a layer: purple for components, sets and instances and every layer in
 /// them, blue otherwise.
 fn outline_colour(doc: &Document, id: NodeId) -> Color32 {
-    use figcraft_engine::components::{owning_component, owning_instance};
+    use figz_engine::components::{owning_component, owning_instance};
     let set = matches!(doc.node(id).map(|n| &n.kind), Some(NodeKind::ComponentSet { .. }));
     if set || owning_component(doc, id).is_some() || owning_instance(doc, id).is_some() { COMPONENT } else { ACCENT }
 }
@@ -667,12 +667,12 @@ fn outline_shape(app: &FigApp, doc: &Document, id: NodeId) -> Option<Vec<Vec<Pos
     ) {
         return None;
     }
-    let (path, _) = figcraft_render::node_outline(doc, n)?;
+    let (path, _) = figz_render::node_outline(doc, n)?;
     let w = doc.world_transform(id);
     let mut out = Vec::new();
     let mut cur: Vec<Pos2> = Vec::new();
-    figcraft_geom::kurbo::flatten(path.iter(), 0.5 / app.session.ds().map(|d| d.view.zoom).unwrap_or(1.0), |el| {
-        use figcraft_geom::kurbo::PathEl::*;
+    figz_geom::kurbo::flatten(path.iter(), 0.5 / app.session.ds().map(|d| d.view.zoom).unwrap_or(1.0), |el| {
+        use figz_geom::kurbo::PathEl::*;
         match el {
             MoveTo(p) => {
                 if cur.len() > 1 {
@@ -757,15 +757,15 @@ fn overlays(app: &FigApp, painter: &egui::Painter, t: &Tokens) -> Vec<(NodeId, [
         if !on_screen.intersects(app.canvas.rect) {
             continue;
         }
-        if view.layout_grids && !n.grids.is_empty() && figcraft_layout::grids_shown(&doc, *c) {
+        if view.layout_grids && !n.grids.is_empty() && figz_layout::grids_shown(&doc, *c) {
             let w = doc.world_transform(*c);
             for g in n.grids.iter().filter(|g| g.visible) {
                 let col = doc_c32(painter.ctx(), g.color);
-                for r in figcraft_layout::grid_lines(g, n.width, n.height) {
+                for r in figz_layout::grid_lines(g, n.width, n.height) {
                     let a = w * Point::new(r.x0, r.y0);
                     let b = w * Point::new(r.x1, r.y1);
                     let (sa, sb) = (app.to_screen(a.x, a.y), app.to_screen(b.x, b.y));
-                    if g.kind == figcraft_doc::GridKind::Grid {
+                    if g.kind == figz_doc::GridKind::Grid {
                         painter.line_segment([sa, sb], stroke(col, 1.0));
                     } else {
                         painter.rect_filled(Rect::from_two_pos(sa, sb), CornerRadius::ZERO, col);
@@ -792,7 +792,7 @@ fn overlays(app: &FigApp, painter: &egui::Painter, t: &Tokens) -> Vec<(NodeId, [
     }
     // Inside a boolean group (an operand selected or in vector edit mode): every operand's outline,
     // so the shapes making the live result stay visible while one of them changes.
-    let operands = figcraft_engine::booleans::outlined_operands(&doc, &sel, ds.vector_edit.as_ref().map(|ve| ve.id));
+    let operands = figz_engine::booleans::outlined_operands(&doc, &sel, ds.vector_edit.as_ref().map(|ve| ve.id));
     for id in operands.iter().filter(|o| !sel.contains(o)) {
         draw_outline(app, painter, &doc, *id, stroke(outline_colour(&doc, *id).gamma_multiply(0.6), 1.0));
     }
@@ -817,7 +817,7 @@ fn overlays(app: &FigApp, painter: &egui::Painter, t: &Tokens) -> Vec<(NodeId, [
     if let Some(d) = ov.drop_target
         && let Some(q) = node_quad(app, &doc, d)
     {
-        quad(painter, q, stroke(if figcraft_engine::components::is_slot(&doc, d) { COMPONENT } else { ACCENT }, 1.0));
+        quad(painter, q, stroke(if figz_engine::components::is_slot(&doc, d) { COMPONENT } else { ACCENT }, 1.0));
     }
     slot_badges(app, painter, &doc, &sel, ov.drop_target);
     if let Some(t) = ov.swap_target {
@@ -836,15 +836,15 @@ fn overlays(app: &FigApp, painter: &egui::Painter, t: &Tokens) -> Vec<(NodeId, [
     // The selection's size label, which measurement labels keep clear of.
     let mut size_label = None;
     if let Some(ve) = ds.vector_edit.clone()
-        && let Some(o) = figcraft_engine::vectoredit::overlay(&doc, &ve)
+        && let Some(o) = figz_engine::vectoredit::overlay(&doc, &ve)
     {
         // The Variable width tool shows width points in place of the path's points.
-        let width_tool = ve.tool == figcraft_engine::vectoredit::VTool::Width;
+        let width_tool = ve.tool == figz_engine::vectoredit::VTool::Width;
         // Other layers edited at once go under the active one; the hover shows on its own layer.
         let ov = &app.session.tool.overlay;
         let hover_on = |id| ov.vector_hover.filter(|_| ov.vector_hover_on.unwrap_or(ve.id) == id);
         for part in &ve.others {
-            if let Some(po) = figcraft_engine::vectoredit::overlay(&doc, &ve.view(part)) {
+            if let Some(po) = figz_engine::vectoredit::overlay(&doc, &ve.view(part)) {
                 vector_overlay(app, painter, &po, !width_tool, hover_on(part.id), false);
             }
         }
@@ -876,9 +876,9 @@ fn overlays(app: &FigApp, painter: &egui::Painter, t: &Tokens) -> Vec<(NodeId, [
             }
             // A layer smaller than its handles on screen shows just its outline (they still answer
             // just outside it).
-            let tiny = figcraft_engine::tools::box_sides_px(&b, zoom).1 < figcraft_engine::tools::SMALL_BOX_PX;
+            let tiny = figz_engine::tools::box_sides_px(&b, zoom).1 < figz_engine::tools::SMALL_BOX_PX;
             // Locked layers (selected in the layers panel) can't be resized: no handles either.
-            let handles = if sel.iter().any(|i| figcraft_engine::tools::locked_in(&doc, *i)) {
+            let handles = if sel.iter().any(|i| figz_engine::tools::locked_in(&doc, *i)) {
                 0
             } else if is_line {
                 2
@@ -894,7 +894,7 @@ fn overlays(app: &FigApp, painter: &egui::Painter, t: &Tokens) -> Vec<(NodeId, [
                 // The point that stays put: the dragged pivot, else the anchor.
                 let pivot = scale
                     .map(|h| Point::new(h.pivot[0], h.pivot[1]))
-                    .or_else(|| figcraft_engine::tools::scale_anchor_point(&doc, &sel, app.session.tool.scale_anchor));
+                    .or_else(|| figz_engine::tools::scale_anchor_point(&doc, &sel, app.session.tool.scale_anchor));
                 if let Some(p) = pivot {
                     let c = app.to_screen(p.x, p.y);
                     painter.circle_filled(c, 4.0, Color32::WHITE);
@@ -916,7 +916,7 @@ fn overlays(app: &FigApp, painter: &egui::Painter, t: &Tokens) -> Vec<(NodeId, [
         }
     }
     if app.session.tool.tool == ToolId::ShapeBuilder
-        && let Some(arr) = figcraft_engine::shapebuilder::current(&app.session)
+        && let Some(arr) = figz_engine::shapebuilder::current(&app.session)
     {
         builder_overlay(app, painter, t, &arr);
     }
@@ -1037,7 +1037,7 @@ fn pill(painter: &egui::Painter, at: Pos2, align: Align2, text: String, col: Col
 /// The selected ellipse's arc handles (the hovered or dragged one larger, Start with a dot inside)
 /// and, while one is dragged, its readout beside it.
 fn arc_overlay(app: &FigApp, painter: &egui::Painter, col: Color32) {
-    use figcraft_engine::arc_handles::ArcHandle;
+    use figz_engine::arc_handles::ArcHandle;
     let Some(hs) = app.session.arc_handles() else { return };
     let ov = &app.session.tool.overlay;
     for h in [ArcHandle::Ratio, ArcHandle::Start, ArcHandle::Sweep] {
@@ -1059,7 +1059,7 @@ fn arc_overlay(app: &FigApp, painter: &egui::Painter, col: Color32) {
 /// The selected shape's corner radius handles and a star's ratio handle (the hovered or dragged
 /// one larger) and, while one is dragged, its value beside it.
 fn shape_overlay(app: &FigApp, painter: &egui::Painter, col: Color32) {
-    use figcraft_engine::shape_handles::ShapeHandle;
+    use figz_engine::shape_handles::ShapeHandle;
     let ov = &app.session.tool.overlay;
     for (h, [x, y]) in app.session.shape_handles() {
         let r = if ov.shape_hover == Some(h) { 4.5 } else { 3.5 };
@@ -1079,12 +1079,12 @@ fn shape_overlay(app: &FigApp, painter: &egui::Painter, col: Color32) {
 
 /// Variable width tool: each width point on the path with a bar across the stroke to its two
 /// width handles (the selected point filled), and a faint preview where a drag would add one.
-fn width_overlay(app: &FigApp, painter: &egui::Painter, doc: &Document, ve: &figcraft_engine::vectoredit::VectorEdit, zoom: f64) {
-    use figcraft_doc::WidthSide;
-    use figcraft_engine::vectoredit::{WHit, width_handles, width_preview};
+fn width_overlay(app: &FigApp, painter: &egui::Painter, doc: &Document, ve: &figz_engine::vectoredit::VectorEdit, zoom: f64) {
+    use figz_doc::WidthSide;
+    use figz_engine::vectoredit::{WHit, width_handles, width_preview};
     let hover = app.session.tool.overlay.width_hover;
     let sp = |p: &[f64; 2]| app.to_screen(p[0], p[1]);
-    let draw = |h: &figcraft_engine::vectoredit::WidthHandle, ghost: bool| {
+    let draw = |h: &figz_engine::vectoredit::WidthHandle, ghost: bool| {
         let (c, a, b) = (sp(&h.at), sp(&h.sides[0]), sp(&h.sides[1]));
         let col = if ghost { ACCENT.gamma_multiply(0.5) } else { ACCENT };
         painter.line_segment([a, b], stroke(Color32::from_white_alpha(160), 3.0));
@@ -1116,12 +1116,12 @@ fn width_overlay(app: &FigApp, painter: &egui::Painter, doc: &Document, ve: &fig
 fn vector_overlay(
     app: &FigApp,
     painter: &egui::Painter,
-    o: &figcraft_engine::vectoredit::EditOverlay,
+    o: &figz_engine::vectoredit::EditOverlay,
     points: bool,
-    hover: Option<figcraft_engine::vectoredit::VHit>,
+    hover: Option<figz_engine::vectoredit::VHit>,
     active: bool,
 ) {
-    use figcraft_engine::vectoredit::VHit;
+    use figz_engine::vectoredit::VHit;
     let ov = &app.session.tool.overlay;
     let sp = |p: &[f64; 2]| app.to_screen(p[0], p[1]);
     // Paint bucket target: hatched like a fill to come.
@@ -1185,9 +1185,9 @@ fn region_hatch(app: &FigApp, painter: &egui::Painter) {
     let Ok(ds) = app.session.ds() else { return };
     let (ox, oy) = ds.view.page_to_screen(0.0, 0.0);
     let (z, min) = (ds.view.zoom, app.canvas.rect.min);
-    let view = figcraft_geom::Affine::new([z, 0.0, 0.0, z, f64::from(min.x) + ox, f64::from(min.y) + oy]);
+    let view = figz_geom::Affine::new([z, 0.0, 0.0, z, f64::from(min.x) + ox, f64::from(min.y) + oy]);
     let r = painter.clip_rect();
-    let clip = figcraft_geom::Rect::new(f64::from(r.min.x), f64::from(r.min.y), f64::from(r.max.x), f64::from(r.max.y));
+    let clip = figz_geom::Rect::new(f64::from(r.min.x), f64::from(r.min.y), f64::from(r.max.x), f64::from(r.max.y));
     for [a, b] in app.session.vector_region_hatch(view, Some(clip)) {
         painter.line_segment([pos2(a.x as f32, a.y as f32), pos2(b.x as f32, b.y as f32)], stroke(ACCENT, REGION_HATCH_WIDTH));
     }
@@ -1195,9 +1195,9 @@ fn region_hatch(app: &FigApp, painter: &egui::Painter) {
 
 /// Shape builder: every region's edges, and the hovered or collected regions hatched (in the
 /// danger colour when releasing removes them).
-fn builder_overlay(app: &FigApp, painter: &egui::Painter, t: &Tokens, arr: &figcraft_engine::shapebuilder::Arrangement) {
+fn builder_overlay(app: &FigApp, painter: &egui::Painter, t: &Tokens, arr: &figz_engine::shapebuilder::Arrangement) {
     let ov = &app.session.tool.overlay;
-    let screen = |r: &figcraft_engine::shapebuilder::Region| -> Vec<Vec<Pos2>> {
+    let screen = |r: &figz_engine::shapebuilder::Region| -> Vec<Vec<Pos2>> {
         r.polys.iter().map(|poly| poly.iter().map(|p| app.to_screen(p.x, p.y)).collect()).collect()
     };
     // Edges read on any fill: a light halo under a thin accent line.
@@ -1286,17 +1286,17 @@ fn boards(doc: &Document, page: NodeId) -> Vec<NodeId> {
 
 /// A frame's or section's handoff status as its badge says it, with the badge colour ("Changed"
 /// once a ready-for-dev layer was edited; `None` without a status).
-pub(crate) fn status_label(n: &figcraft_doc::Node) -> Option<(&'static str, Color32)> {
+pub(crate) fn status_label(n: &figz_doc::Node) -> Option<(&'static str, Color32)> {
     match n.dev_status {
-        figcraft_doc::DevStatus::None => None,
-        figcraft_doc::DevStatus::ReadyForDev if n.dev_changed => Some((tr("Changed"), crate::theme::DEV_CHANGED)),
-        figcraft_doc::DevStatus::ReadyForDev => Some((tr("Ready for dev"), crate::theme::DEV_READY)),
-        figcraft_doc::DevStatus::Completed => Some((tr("Completed"), crate::theme::DEV_COMPLETED)),
+        figz_doc::DevStatus::None => None,
+        figz_doc::DevStatus::ReadyForDev if n.dev_changed => Some((tr("Changed"), crate::theme::DEV_CHANGED)),
+        figz_doc::DevStatus::ReadyForDev => Some((tr("Ready for dev"), crate::theme::DEV_READY)),
+        figz_doc::DevStatus::Completed => Some((tr("Completed"), crate::theme::DEV_COMPLETED)),
     }
 }
 
 /// A frame's or section's handoff status as a small pill left-centred on `at`; the pill's area.
-pub(crate) fn status_badge(painter: &egui::Painter, n: &figcraft_doc::Node, at: Pos2) -> Option<Rect> {
+pub(crate) fn status_badge(painter: &egui::Painter, n: &figz_doc::Node, at: Pos2) -> Option<Rect> {
     let (label, fill) = status_label(n)?;
     let galley = painter.layout_no_wrap(label.to_string(), semibold(10.0), Color32::WHITE);
     let r = Rect::from_min_size(pos2(at.x, at.y - galley.size().y / 2.0 - 2.0), galley.size() + vec2(10.0, 4.0));
@@ -1311,7 +1311,7 @@ fn rulers(app: &FigApp, painter: &egui::Painter, t: &Tokens, doc: &Document, sel
     painter.rect_filled(Rect::from_min_size(r.min, vec2(r.width(), size)), CornerRadius::ZERO, t.panel);
     painter.rect_filled(Rect::from_min_size(r.min, vec2(size, r.height())), CornerRadius::ZERO, t.panel);
     let zoom = app.session.ds().map(|d| d.view.zoom).unwrap_or(1.0);
-    let step = figcraft_engine::guides::ruler_step(zoom);
+    let step = figz_engine::guides::ruler_step(zoom);
     let p0 = app.to_page(r.min);
     let p1 = app.to_page(r.max);
     // Highlight the selection's span.

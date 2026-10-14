@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use egui::{Event, vec2};
-use figcraft_engine::Session;
+use figz_engine::Session;
 use serde_json::json;
 
 use crate::layers_drag_tests::Ui;
@@ -25,7 +25,7 @@ fn settle(u: &mut Ui) {
 #[test]
 fn a_drag_shows_on_the_canvas_while_it_moves() {
     let mut s = Session::new();
-    let id = |v: serde_json::Value| figcraft_engine::params::id_of(&v["id"]).unwrap();
+    let id = |v: serde_json::Value| figz_engine::params::id_of(&v["id"]).unwrap();
     let f = id(s.execute("frame.create", &json!({"x": 100, "y": 100, "width": 300, "height": 200})).unwrap());
     s.execute("node.set", &json!({"id": f, "rotation": 25})).unwrap();
     let r =
