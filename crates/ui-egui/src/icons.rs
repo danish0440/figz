@@ -83,6 +83,7 @@ icons! {
     FlipH,
     FlipV,
     CornerRadius,
+    Angle,
     IndependentCorners,
     LinkOn,
     LinkOff,
@@ -120,6 +121,11 @@ icons! {
     Export,
     StrokeIcon,
     Fill,
+    /// Gradient kinds: a swatch outline holding a fade of that kind.
+    GradientLinear,
+    GradientRadial,
+    GradientAngular,
+    GradientDiamond,
     Sun,
     Moon,
     Undo,
@@ -310,6 +316,32 @@ impl P<'_> {
         }
         // A hairline around the mesh gives it the same soft edge as the convex fills.
         self.painter.add(Shape::closed_line(v, Stroke::new(self.px, self.color)));
+    }
+    /// Triangles `tris` over `verts` (x, y, alpha): the colour fades between the vertices.
+    fn shade(&self, verts: &[(f32, f32, f32)], tris: &[u32]) {
+        let mut mesh = Mesh::default();
+        for &(x, y, a) in verts {
+            mesh.colored_vertex(self.raw(x, y), self.color.gamma_multiply(a));
+        }
+        mesh.indices = tris.to_vec();
+        self.painter.add(Shape::mesh(mesh));
+    }
+    /// A disc of radius `r` at the centre, as a fan from the top, clockwise: each slice's rim
+    /// alphas from `rim` and its centre's from `centre`, both of how far round it is (0..1).
+    fn shade_fan(&self, r: f32, centre: impl Fn(f32) -> f32, rim: impl Fn(f32) -> f32) {
+        const SLICES: u32 = 32;
+        let at = |t: f32| {
+            let a = -FRAC_PI_2 + t * TAU;
+            (8.0 + r * a.cos(), 8.0 + r * a.sin())
+        };
+        let mut verts = Vec::new();
+        for i in 0..SLICES {
+            let (t0, t1) = (i as f32 / SLICES as f32, (i + 1) as f32 / SLICES as f32);
+            let ((x0, y0), (x1, y1)) = (at(t0), at(t1));
+            verts.extend([(8.0, 8.0, centre((t0 + t1) / 2.0)), (x0, y0, rim(t0)), (x1, y1, rim(t1))]);
+        }
+        let tris: Vec<u32> = (0..SLICES * 3).collect();
+        self.shade(&verts, &tris);
     }
     fn rect(&self, x0: f32, y0: f32, x1: f32, y1: f32, r: f32) {
         let rr = Rect::from_min_max(self.sp(x0, y0), self.sp(x1, y1));
@@ -663,6 +695,12 @@ fn draw(p: &P, icon: Icon) {
             p.fill(&[(3.0, 9.0), (13.0, 9.0), (13.0, 14.0)]);
         }
         CornerRadius => p.corner(2.5, 2.5, 1.0, 1.0, 11.5, 6.0),
+        Angle => {
+            // Two rays from a vertex, the arc between them marking the angle (all unhinted, so
+            // the arc meets the rays at every size).
+            p.path(&[(13.5, 13.0), (2.5, 13.0), (10.5, 3.0)], false);
+            p.path(&arc_pts(2.5, 13.0, 6.0, (-10.0f32).atan2(8.0), 0.0).collect::<Vec<_>>(), false);
+        }
         IndependentCorners => {
             for (x, y, dx, dy) in [(2.5, 2.5, 1.0, 1.0), (13.5, 2.5, -1.0, 1.0), (2.5, 13.5, 1.0, -1.0), (13.5, 13.5, -1.0, -1.0)] {
                 p.corner(x, y, dx, dy, 4.0, 2.0);
@@ -833,6 +871,24 @@ fn draw(p: &P, icon: Icon) {
         }
         StrokeIcon => p.rect(2.5, 2.5, 13.5, 13.5, 2.0),
         Fill => p.fill_rect(2.0, 2.0, 14.0, 14.0, 2.0),
+        GradientLinear => {
+            p.rect(2.5, 2.5, 13.5, 13.5, 2.0);
+            p.shade(&[(4.0, 4.0, 1.0), (12.0, 4.0, 0.0), (12.0, 12.0, 0.0), (4.0, 12.0, 1.0)], &[0, 1, 2, 0, 2, 3]);
+        }
+        GradientRadial => {
+            p.rect(2.5, 2.5, 13.5, 13.5, 2.0);
+            p.shade_fan(5.5, |_| 1.0, |_| 0.0);
+        }
+        GradientAngular => {
+            // Once round from the top: the seam shows where the sweep starts.
+            p.rect(2.5, 2.5, 13.5, 13.5, 2.0);
+            p.shade_fan(4.0, |t| 1.0 - t, |t| 1.0 - t);
+        }
+        GradientDiamond => {
+            p.rect(2.5, 2.5, 13.5, 13.5, 2.0);
+            let v = [(8.0, 8.0, 1.0), (8.0, 2.5, 0.0), (13.5, 8.0, 0.0), (8.0, 13.5, 0.0), (2.5, 8.0, 0.0)];
+            p.shade(&v, &[0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1]);
+        }
         Moon => {
             // A crescent: the outer rim, then the shadowing circle's edge back. Both arcs stop short
             // of where the circles meet, so each tip is two blunt joins (a single cusp join folds).
@@ -1102,6 +1158,28 @@ mod tests {
         assert!(out.shapes.len() > Icon::ALL.len() * 10);
     }
 
+    /// The gradient kinds' icons show a fade: a mesh whose vertices run from opaque to clear.
+    #[test]
+    fn gradient_icons_fade() {
+        let ctx = egui::Context::default();
+        for icon in [Icon::GradientLinear, Icon::GradientRadial, Icon::GradientAngular, Icon::GradientDiamond] {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                paint(ui.painter(), Rect::from_min_size(Pos2::ZERO, Vec2::splat(16.0)), icon, Color32::WHITE);
+            });
+            out.textures_delta.clear();
+            let alphas: Vec<u8> = out
+                .shapes
+                .iter()
+                .filter_map(|c| match &c.shape {
+                    Shape::Mesh(m) => Some(m.vertices.iter().map(|v| v.color.a()).collect::<Vec<_>>()),
+                    _ => None,
+                })
+                .flatten()
+                .collect();
+            assert!(alphas.contains(&255) && alphas.contains(&0), "{icon:?} fades from opaque to clear: {alphas:?}");
+        }
+    }
+
     #[test]
     fn concave_polygons_triangulate() {
         let arrow = [pos2(4.0, 2.0), pos2(4.0, 13.6), pos2(6.9, 10.9), pos2(8.8, 14.8), pos2(10.6, 14.0), pos2(8.7, 10.2), pos2(12.6, 10.2)];
@@ -1109,5 +1187,43 @@ mod tests {
         let rev: Vec<Pos2> = arrow.iter().rev().copied().collect();
         assert_eq!(triangulate(&rev).len(), (arrow.len() - 2) * 3);
         assert!(triangulate(&arrow[..2]).is_empty());
+    }
+
+    /// The points painted inside `area`, relative to the top left of what's painted there (in
+    /// quarter points), so the same icon gives the same marks wherever its field puts it.
+    fn marks(shapes: &[egui::epaint::ClippedShape], area: Rect) -> Vec<(i32, i32)> {
+        fn walk(shape: &Shape, out: &mut Vec<Pos2>) {
+            match shape {
+                Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+                Shape::LineSegment { points, .. } => out.extend(points),
+                Shape::Path(p) => out.extend(&p.points),
+                Shape::Circle(c) => out.push(c.center),
+                _ => {}
+            }
+        }
+        let mut pts = Vec::new();
+        shapes.iter().for_each(|c| walk(&c.shape, &mut pts));
+        pts.retain(|p| area.contains(*p));
+        let x0 = pts.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
+        let y0 = pts.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
+        let mut out: Vec<(i32, i32)> = pts.into_iter().map(|p| (((p.x - x0) * 4.0).round() as i32, ((p.y - y0) * 4.0).round() as i32)).collect();
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    /// The Design panel's Rotation field shows an icon of its own, not Corner radius's (#256).
+    #[test]
+    fn rotation_and_corner_radius_fields_show_different_icons() {
+        let mut s = figz_engine::Session::new();
+        let r = s.execute("shape.rectangle", &serde_json::json!({"x": 0, "y": 0, "width": 100, "height": 80})).unwrap()["id"].clone();
+        s.execute("select.set", &serde_json::json!({"ids": [r]})).unwrap();
+        let mut u = crate::layers_drag_tests::Ui::new(s);
+        u.frame(vec![]);
+        let shapes = u.frame_output(vec![]).shapes;
+        let lead = |name: &str| u.ctx.read_response(egui::Id::new(name).with("lead")).map(|r| r.rect).unwrap_or_else(|| panic!("{name} is shown"));
+        let (rotation, radius) = (marks(&shapes, lead("pos_rot")), marks(&shapes, lead("ap_rad")));
+        assert!(!rotation.is_empty() && !radius.is_empty(), "both draw an icon");
+        assert_ne!(rotation, radius);
     }
 }

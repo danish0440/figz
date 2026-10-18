@@ -319,7 +319,15 @@ pub struct Recents {
     pub selected: Option<String>,
     /// The pass the recent files were last drawn in: coming back to them reads the dates again.
     drawn: u64,
+    /// When the dates were last read again while in view, and whether the window had the focus:
+    /// files deleted, moved or saved elsewhere show up within [`RECHECK_SECS`], or at once when
+    /// the window gets the focus back.
+    checked: f64,
+    focused: bool,
 }
+
+/// How often the dates of the recent files in view are read again (seconds).
+const RECHECK_SECS: f64 = 2.0;
 
 enum Job {
     Stat(String),
@@ -423,10 +431,15 @@ impl Recents {
     /// files not looked at since the recent files came into view. `time`: the input time.
     fn refresh(&mut self, ctx: &egui::Context, paths: &[String], time: f64) {
         let pass = ctx.cumulative_pass_nr();
-        if pass > self.drawn.saturating_add(1) {
+        let (focused, refocused) = ctx.input(|i| (i.focused, i.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(true)))));
+        let back = pass > self.drawn.saturating_add(1) || refocused || (focused && !self.focused);
+        if back || time - self.checked >= RECHECK_SECS {
             self.files.values_mut().for_each(|k| k.asked = false);
+            self.checked = time;
         }
         self.drawn = pass;
+        self.focused = focused;
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(RECHECK_SECS));
         let loader = self.loader.get_or_insert_with(|| Loader::new(ctx));
         for reply in loader.poll() {
             match reply {
@@ -493,7 +506,7 @@ impl Recents {
 
     /// For `ui.inspect`: each file listed, whether it is there and whether its picture is in.
     pub fn inspect(&self, prefs: &Prefs) -> Value {
-        let paths: Vec<String> = prefs.recent_files.iter().take(SHOWN).cloned().collect();
+        let paths: Vec<String> = listed(&prefs.recent_files).take(SHOWN).cloned().collect();
         let files: Vec<Value> = sorted(self.shown(&paths), Sort::of(prefs))
             .iter()
             .map(|f| {
@@ -510,6 +523,12 @@ impl Recents {
             .collect();
         json!(files)
     }
+}
+
+/// The recent files that may be listed: all of them, or, when the app runs confined to automation
+/// roots, those inside them (no name or picture of another file is shown).
+pub(crate) fn listed(recents: &[String]) -> impl Iterator<Item = &String> {
+    recents.iter().filter(|p| figz_engine::file_access::allowed(p, figz_engine::file_access::Access::Read))
 }
 
 /// The recent files for `ui.inspect`: `{view, sort, order, files: [{path, name, exists, picture,
@@ -535,16 +554,27 @@ enum Action {
     View(View),
 }
 
-/// The Recent files heading, its toolbar and the files as cards or a table.
-pub fn section(app: &mut FigApp, ui: &mut Ui, t: &Tokens) {
-    let paths: Vec<String> = app.session.prefs.recent_files.iter().take(SHOWN).cloned().collect();
+/// The Recent files heading, its toolbar and the files as cards or a table. With a `query` (lower
+/// case, from the Home search) only the files not open whose path has it, from every recent file;
+/// nothing at all when none has it. How many files are shown.
+pub fn section(app: &mut FigApp, ui: &mut Ui, t: &Tokens, query: &str) -> usize {
+    let searching = !query.is_empty();
+    // A search reaches every recent file; the files shown without one stay known through it.
+    let paths: Vec<String> = listed(&app.session.prefs.recent_files).take(if searching { usize::MAX } else { SHOWN }).cloned().collect();
     let time = ui.input(|i| i.time);
     let now = figz_engine::cmd::comment::now_secs();
     let reduce_motion = app.reduce_motion();
     let (view, sort) = (View::of(&app.session.prefs), Sort::of(&app.session.prefs));
     let state = &mut app.ui.home_view.recents;
     state.refresh(ui.ctx(), &paths, time);
-    let files = sorted(state.shown(&paths), sort);
+    let mut files = sorted(state.shown(&paths), sort);
+    if searching {
+        let docs = &app.session.docs;
+        files.retain(|f| f.path.to_lowercase().contains(query) && !docs.iter().any(|d| d.path.as_deref() == Some(f.path.as_str())));
+        if files.is_empty() {
+            return 0;
+        }
+    }
     let with_created = files.iter().any(|f| f.stat.is_some_and(|s| s.created.is_some()));
     let mut action = toolbar(ui, t, view, sort, with_created);
     ui.add_space(16.0);
@@ -555,7 +585,7 @@ pub fn section(app: &mut FigApp, ui: &mut Ui, t: &Tokens) {
     action = action.or(chosen);
     match action {
         Some(Action::Open(path)) => {
-            if app.run("file.open", json!({"path": path})).is_some() {
+            if app.run_user("file.open", json!({"path": path})).is_some() {
                 app.ui.home = false;
             }
         }
@@ -574,6 +604,7 @@ pub fn section(app: &mut FigApp, ui: &mut Ui, t: &Tokens) {
         }
         None => {}
     }
+    files.len()
 }
 
 /// "Recent files", and at the right the sort menu and the grid and list buttons.
@@ -738,7 +769,7 @@ fn grid(ui: &mut Ui, t: &Tokens, recents: &mut Recents, files: &[Shown], now: u6
         for (i, file) in row.iter().enumerate() {
             let rect = Rect::from_min_size(pos2(r.min.x + i as f32 * (card_w + GAP), r.min.y), vec2(card_w, card_h));
             let resp = ui.interact(rect, card_id(&file.path), Sense::click());
-            a11y::button(&resp, &spoken(file, now));
+            a11y::named_button(&resp, &spoken(file, now));
             let resp = resp.on_hover_text(&file.path);
             let visible = ui.is_rect_visible(rect);
             let picture = recents.picture(&file.path, visible, time);
@@ -878,7 +909,7 @@ fn list(ui: &mut Ui, t: &Tokens, recents: &mut Recents, files: &[Shown], now: u6
     for file in files {
         let (r, _) = ui.allocate_exact_size(vec2(width, ROW_H), Sense::hover());
         let resp = ui.interact(r, card_id(&file.path), Sense::click());
-        a11y::button(&resp, &spoken(file, now));
+        a11y::named_button(&resp, &spoken(file, now));
         let resp = resp.on_hover_text(&file.path);
         if let Some(a) = interact(ui, &resp, recents, file) {
             action = Some(a);

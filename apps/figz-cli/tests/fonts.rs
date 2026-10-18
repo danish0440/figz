@@ -45,3 +45,25 @@ fn headless_runs_resolve_installed_families_unless_opted_out() {
     assert_eq!(run_one("face", face.clone(), &[], false)["family"], json!(installed), "text uses the installed family");
     assert_ne!(run_one("face", face, &["--no-system-fonts"], false)["family"], json!(installed), "opted out, it falls back");
 }
+
+#[test]
+fn info_lists_the_fonts_a_file_uses_that_are_missing() {
+    let d = std::env::temp_dir().join(format!("figz-cli-missing-{}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    let (script, file) = (d.join("make.json"), d.join("doc.figz"));
+    let text =
+        |family: &str| json!({"command": "text.create", "params": {"text": "Hamburgefonstiv", "x": 0, "y": 0, "props": {"fontFamily": family}}});
+    std::fs::write(&script, json!([text("FigZ Missing CLI"), text("FigZ Missing CLI")]).to_string()).unwrap();
+    let cli = || Command::new(env!("CARGO_BIN_EXE_figz-cli"));
+    let made = cli().arg("run").arg(&script).arg("--out").arg(&file).output().unwrap();
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+
+    let out = cli().arg("info").arg(&file).arg("--json").output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["missingFonts"], json!([{"family": "FigZ Missing CLI", "layers": 2}]));
+
+    let out = cli().arg("info").arg(&file).output().unwrap();
+    let shown = String::from_utf8_lossy(&out.stdout);
+    assert!(shown.contains("missing font \"FigZ Missing CLI\": 2 text layers"), "{shown}");
+}

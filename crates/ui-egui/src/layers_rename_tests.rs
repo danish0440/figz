@@ -100,9 +100,12 @@ fn tab_on_the_last_row_commits_and_ends() {
 
 #[test]
 fn cmd_r_renames_the_selection_and_opens_its_parents() {
-    // Cmd+R on macOS; Ctrl+R elsewhere, where egui sets both `ctrl` and `command`.
+    // Cmd+R on macOS; Ctrl+R elsewhere, where egui sets both `ctrl` and `command`. On macOS Ctrl
+    // comes without `command` and Ctrl+R isn't a shortcut.
+    let cmd = Modifiers::MAC_CMD | Modifiers::COMMAND;
     let ctrl = Modifiers { ctrl: true, command: true, ..Default::default() };
-    for (k, held) in [Modifiers::MAC_CMD | Modifiers::COMMAND, ctrl].into_iter().enumerate() {
+    let keys: &[Modifiers] = if cfg!(target_os = "macos") { &[cmd] } else { &[cmd, ctrl] };
+    for (k, &held) in keys.iter().enumerate() {
         let (mut u, _, frame, child, _) = setup();
         u.app.session.execute("select.set", &json!({"ids": [child]})).unwrap();
         u.frame(vec![]);
@@ -166,4 +169,29 @@ fn a_rename_scrolled_out_of_view_goes_on() {
     assert_eq!(renaming(&u), Some(top), "still renaming");
     press(&mut u, Key::Enter, Modifiers::NONE);
     assert_eq!(name(&u, top), "Far");
+}
+
+#[test]
+fn a_key_typed_in_the_frame_a_rename_starts_replaces_the_name() {
+    // The app draws no frame between the double-click's last release (or F2, or File ▸ Rename) and
+    // the first key, so the name field first shows in the frame that types into it.
+    let (mut u, a, _, _, c) = setup();
+    let p = u.row_at(c);
+    for _ in 0..2 {
+        u.button(p, true);
+        u.button(p, false);
+    }
+    type_text(&mut u, "Hero");
+    press(&mut u, Key::Enter, Modifiers::NONE);
+    assert_eq!(name(&u, c), "Hero", "a double-click rename");
+    u.app.session.execute("select.set", &json!({"ids": [a]})).unwrap();
+    u.frame(vec![]);
+    press(&mut u, Key::F2, Modifiers::NONE);
+    type_text(&mut u, "Base");
+    press(&mut u, Key::Enter, Modifiers::NONE);
+    assert_eq!(name(&u, a), "Base", "an F2 rename");
+    crate::menus::invoke(&mut u.app, "file.rename");
+    type_text(&mut u, "Brand kit");
+    press(&mut u, Key::Enter, Modifiers::NONE);
+    assert_eq!(u.app.session.doc().unwrap().name, "Brand kit", "File ▸ Rename");
 }

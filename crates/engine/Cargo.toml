@@ -20,6 +20,7 @@ figz-render = { workspace = true }
 figz-format = { workspace = true }
 figz-svg = { workspace = true }
 figz-pdf = { workspace = true }
+craft-docpath = { workspace = true }
 figz-plugin = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
