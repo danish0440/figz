@@ -53,6 +53,7 @@ modules:
     build-commands:
       - cargo --offline build --release --locked -p figz
       - install -Dm755 target/release/figz /app/bin/figz
+      - install -Dm644 NOTICE /app/share/doc/figz/NOTICE
       - install -Dm644 packaging/linux/com.pintaz.figz.desktop /app/share/applications/com.pintaz.figz.desktop
       - install -Dm644 packaging/linux/com.pintaz.figz.mime.xml /app/share/mime/packages/com.pintaz.figz.xml
       - mkdir -p /app/share/icons && cp -R assets/app-icon/hicolor /app/share/icons/
