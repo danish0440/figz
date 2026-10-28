@@ -63,6 +63,7 @@ fn big_job(doc: &Arc<figz_doc::Document>, page: figz_doc::NodeId, scale: f64) ->
         skip: vec![],
         solo: None,
         proof: false,
+        dots: None,
         uid: 0,
         zoom_preview: false,
         at: web_time::Instant::now(),
