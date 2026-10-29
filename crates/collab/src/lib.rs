@@ -124,6 +124,8 @@ impl Recompute for NoRecompute {
 }
 
 #[cfg(test)]
+mod board_sync_tests;
+#[cfg(test)]
 mod client_tests;
 #[cfg(test)]
 mod codec_tests;
@@ -133,6 +135,8 @@ mod diff_tests;
 mod entry_ids_tests;
 #[cfg(test)]
 mod frac_tests;
+#[cfg(test)]
+mod image_tests;
 #[cfg(test)]
 mod journal_tests;
 #[cfg(test)]

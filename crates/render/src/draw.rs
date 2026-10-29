@@ -4,14 +4,14 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use figz_color::{BlendMode, Paint};
+use figz_color::{BlendMode, Paint, PaintKind};
 use figz_doc::{Document, EffectKind, Node, NodeId, NodeKind, StrokeAlign};
 use figz_geom::{Affine, BezPath, Rect, Shape};
-use tiny_skia::{FillRule, IntRect, Mask, MaskType, Pixmap, PixmapPaint, Transform};
+use tiny_skia::{FillRule, FilterQuality, IntRect, Mask, MaskType, Pixmap, PixmapPaint, Transform};
 
 use crate::backdrop::{self, Under};
 use crate::boolean::{PathCache, locked};
-use crate::paint::{composite, prepare_at, ts_blend};
+use crate::paint::{Prepared, composite, prepare_at, ts_blend};
 use crate::{blur, grain, lod, shadow};
 
 /// Shared state for one render.
@@ -30,6 +30,7 @@ pub struct Ctx<'a, 'd> {
     pub skip: &'a [NodeId],
     /// Approximate what's too small to see in detail (canvas previews; see [`crate::lod`]).
     pub lod: bool,
+    pub magnified_image_pixels: bool,
     /// The surfaces under the one being drawn into, when it is an isolated layer (for backdrops).
     pub under: Option<&'a Under<'a>>,
     /// Seconds into animated GIFs (0: their first frame; only the presenter plays them).
@@ -116,10 +117,21 @@ pub fn ts_path(p: &BezPath) -> Option<tiny_skia::Path> {
     b.finish()
 }
 
+const IMAGE_PIXELS_SHOWN_FROM_MAGNIFICATION: f64 = 2.0;
+
+fn pixels_when_magnified(prep: Prepared, device_scale: f64) -> Prepared {
+    let Prepared::Pattern { pixmap, mode, quality, opacity, transform } = prep else { return prep };
+    let image_scale = f64::from(transform.sx * transform.sy - transform.kx * transform.ky).abs().sqrt();
+    let magnification = device_scale * image_scale;
+    let quality = if magnification >= IMAGE_PIXELS_SHOWN_FROM_MAGNIFICATION { FilterQuality::Nearest } else { quality };
+    Prepared::Pattern { pixmap, mode, quality, opacity, transform }
+}
+
 fn fill_with(pix: &mut Pixmap, path: &tiny_skia::Path, paints: &[Paint], w: f64, h: f64, xf: Affine, rule: FillRule, ctx: &Ctx, mask: Option<&Mask>) {
     let scale = xf.determinant().abs().sqrt();
     for p in paints {
         let Some(prep) = prepare_at(p, w, h, scale, ctx.doc, ctx.time) else { continue };
+        let prep = if ctx.magnified_image_pixels && matches!(p.kind, PaintKind::Image(_)) { pixels_when_magnified(prep, scale) } else { prep };
         let paint = tiny_skia::Paint { shader: prep.shader(), anti_alias: true, blend_mode: ts_blend(p.blend), ..Default::default() };
         if p.blend == BlendMode::PlusDarker {
             // No tiny-skia mode: the paint alone over its pixels, then blended in.
@@ -156,15 +168,26 @@ pub(crate) fn hash_path(p: &BezPath, h: &mut impl Hasher) {
     }
 }
 
+/// Per-side strokes on rectangles and frames (a ring under non-zero winding too), if `n` has them.
+fn side_strokes(n: &Node) -> Option<Arc<BezPath>> {
+    let props = &n.stroke;
+    let sides = props.sides?;
+    if !matches!(n.kind, NodeKind::Rectangle | NodeKind::Frame | NodeKind::Component { .. } | NodeKind::Instance { .. }) {
+        return None;
+    }
+    let c = &n.corners;
+    Some(Arc::new(if c.uniform() == Some(0.0) {
+        figz_pathops::rect_side_strokes(n.width, n.height, sides, props.align)
+    } else {
+        figz_pathops::rounded_side_strokes(n.width, n.height, c.radii, c.smoothing, sides, props.align)
+    }))
+}
+
 /// The stroke area of a node in local coordinates.
 pub fn stroke_area(n: &Node, path: &BezPath, closed: bool) -> Arc<BezPath> {
     let props = &n.stroke;
-    // Per-side strokes on rectangles/frames.
-    if let Some(sides) = props.sides
-        && matches!(n.kind, NodeKind::Rectangle | NodeKind::Frame | NodeKind::Component { .. } | NodeKind::Instance { .. })
-        && n.corners.uniform() == Some(0.0)
-    {
-        return Arc::new(figz_pathops::rect_side_strokes(n.width, n.height, sides, props.align));
+    if let Some(p) = side_strokes(n) {
+        return p;
     }
     // Rect/ellipse inside/outside strokes without booleans: an even-odd ring of two outlines.
     if props.dashes.is_empty() && props.profile().is_none() && props.brush.is_none() && closed && props.align != StrokeAlign::Center {
@@ -205,6 +228,18 @@ pub fn stroke_area(n: &Node, path: &BezPath, closed: bool) -> Arc<BezPath> {
             return Arc::new(o);
         }
     }
+    cached_stroke_outline(n, path, closed)
+}
+
+/// The stroke a boolean operand contributes: like [`stroke_area`], but never an even-odd ring
+/// (boolean folding uses non-zero winding).
+fn operand_stroke(n: &Node, path: &BezPath, closed: bool) -> Arc<BezPath> {
+    side_strokes(n).unwrap_or_else(|| cached_stroke_outline(n, path, closed))
+}
+
+/// A non-zero stroke outline (cached), shared by painting and boolean operands.
+fn cached_stroke_outline(n: &Node, path: &BezPath, closed: bool) -> Arc<BezPath> {
+    let props = &n.stroke;
     let mut h = std::collections::hash_map::DefaultHasher::new();
     hash_path(path, &mut h);
     (props.weight.to_bits(), props.align as u8, props.cap_start as u8, props.cap_end as u8, props.join as u8, props.miter_limit.to_bits(), closed)
@@ -213,11 +248,12 @@ pub fn stroke_area(n: &Node, path: &BezPath, closed: bool) -> Arc<BezPath> {
         d.to_bits().hash(&mut h);
     }
     props.dashes.len().hash(&mut h);
-    // Points' own caps and joins (vector networks).
+    // Points' own caps and joins and the fill rule Inside/Outside clip by (vector networks).
     let net = match &n.kind {
-        NodeKind::Vector { network } if network.has_point_styles(props.join) => Some(network),
+        NodeKind::Vector { network } => Some(network),
         _ => None,
     };
+    net.is_some_and(|n| n.regions.iter().any(|r| r.winding == figz_doc::WindingRule::EvenOdd)).hash(&mut h);
     for v in net.map(|n| n.vertices.as_slice()).unwrap_or_default() {
         (v.cap.map(|c| c as u8), v.join.map(|j| j as u8)).hash(&mut h);
     }
@@ -276,7 +312,7 @@ fn node_outline_at(doc: &Document, n: &Node, depth: usize) -> Option<(BezPath, F
                 .filter_map(|c| doc.node(*c))
                 .filter(|c| c.visible)
                 .filter_map(|c| {
-                    let (mut p, _) = subtree_outline(doc, c, depth + 1)?;
+                    let (mut p, _) = subtree_outline_at(doc, c, depth + 1, true)?;
                     p.apply_affine(c.transform);
                     Some((p, c.bool_op.unwrap_or(*op)))
                 })
@@ -290,6 +326,27 @@ fn node_outline_at(doc: &Document, n: &Node, depth: usize) -> Option<(BezPath, F
             Some((p, FillRule::Winding))
         }
         NodeKind::Vector { network } => {
+            if network.regions.iter().any(|r| r.fills.is_some() || r.paint_space.is_some()) {
+                let rounded = network.rounded();
+                let net = rounded.as_ref().unwrap_or(network);
+                let mut areas = BezPath::new();
+                for (i, region) in net.regions.iter().enumerate() {
+                    let paints = region.fills.as_deref().unwrap_or(&n.fills);
+                    if !paints.iter().any(|p| p.visible) {
+                        continue;
+                    }
+                    let Some(path) = net.region_path(i) else { continue };
+                    let even_odd = region.winding == figz_doc::WindingRule::EvenOdd;
+                    if let Ok(normalized) = figz_pathops::simplify_with_rule(&path, even_odd) {
+                        areas.extend(normalized.elements().iter().copied());
+                    } else {
+                        // Invalid geometry still gets the renderer's best-effort path.
+                        areas.extend(path.elements().iter().copied());
+                    }
+                }
+                let silhouette = figz_pathops::simplify(&areas).unwrap_or(areas);
+                return Some((silhouette, FillRule::Winding));
+            }
             let rule =
                 if network.regions.iter().any(|r| r.winding == figz_doc::WindingRule::EvenOdd) { FillRule::EvenOdd } else { FillRule::Winding };
             Some((network.fill_path(), rule))
@@ -300,6 +357,11 @@ fn node_outline_at(doc: &Document, n: &Node, depth: usize) -> Option<(BezPath, F
 
 /// The union outline of a node and its descendants (for booleans of groups/frames).
 pub fn subtree_outline(doc: &Document, n: &Node, depth: usize) -> Option<(BezPath, FillRule)> {
+    subtree_outline_at(doc, n, depth, false)
+}
+
+/// Boolean operands with only a stroke contribute the painted band, not their interior.
+fn subtree_outline_at(doc: &Document, n: &Node, depth: usize, stroke_only: bool) -> Option<(BezPath, FillRule)> {
     if depth > 64 {
         return None;
     }
@@ -308,20 +370,29 @@ pub fn subtree_outline(doc: &Document, n: &Node, depth: usize) -> Option<(BezPat
             let mut out = BezPath::new();
             if n.kind.is_frame_like()
                 && let Some(p) = figz_doc::geometry::shape_path(n)
-                && n.fills.iter().any(|f| f.visible)
             {
-                out.extend(p.elements().iter().copied());
+                if n.fills.iter().any(|f| f.visible) {
+                    out.extend(p.elements().iter().copied());
+                } else if stroke_only && n.has_visible_stroke() {
+                    out.extend(operand_stroke(n, &p, true).elements().iter().copied());
+                }
             }
             for c in n.children.iter().filter_map(|c| doc.node(*c)) {
                 if !c.visible {
                     continue;
                 }
-                if let Some((mut p, _)) = subtree_outline(doc, c, depth + 1) {
+                if let Some((mut p, _)) = subtree_outline_at(doc, c, depth + 1, stroke_only) {
                     p.apply_affine(c.transform);
                     out.extend(p.elements().iter().copied());
                 }
             }
             Some((out, FillRule::Winding))
+        }
+        _ if stroke_only && !n.fills.iter().any(|p| p.visible) && n.has_visible_stroke() => {
+            let (path, _) = node_outline_at(doc, n, depth)?;
+            let path = if matches!(n.kind, NodeKind::Text(_)) { path } else { figz_doc::geometry::stroke_geometry(n).unwrap_or(path) };
+            let closed = figz_doc::geometry::is_closed(n) || matches!(n.kind, NodeKind::BooleanOp { .. });
+            Some(((*operand_stroke(n, &path, closed)).clone(), FillRule::Winding))
         }
         _ => node_outline_at(doc, n, depth),
     }
@@ -609,7 +680,7 @@ fn backdrop_layer(ctx: &Ctx, pix: &Pixmap, n: &Node, sh: &shadow::Outline, at: (
     let pad = backdrop::pad(n, ctx.scale);
     let p = i32::try_from(pad).unwrap_or(0);
     let back = backdrop::backdrop(pix, ctx.under, lx.saturating_sub(p), ly.saturating_sub(p), lw + pad * 2, lh + pad * 2)?;
-    backdrop::effects(n, sh, &back, pad, lw, lh, lxf, ctx.scale)
+    backdrop::effects(n, backdrop::EffectFrame { shape: sh, back: &back, pad, size: (lw, lh), xf: lxf, scale: ctx.scale })
 }
 
 /// Node `n`'s layer blur, noise and texture on its `layer`, in list order.
@@ -651,6 +722,31 @@ fn draw_outline(ctx: &Ctx, pix: &mut Pixmap, n: &Node, xf: Affine, depth: usize)
 
 /// What paints over a node's fills, under its children and strokes (its inner shadows).
 type OverFills<'a> = Option<&'a dyn Fn(&mut Pixmap)>;
+
+/// A vector's network when any of its regions has paints or a paint frame of its own.
+fn region_painted(n: &Node) -> Option<&figz_doc::VectorNetwork> {
+    match &n.kind {
+        NodeKind::Vector { network } if network.regions.iter().any(|r| r.fills.is_some() || r.paint_space.is_some()) => Some(network),
+        _ => None,
+    }
+}
+
+/// Each region of a vector with region paints, filled with its own paints (or the layer's) in its
+/// own paint frame.
+fn fill_vector_regions(ctx: &Ctx, pix: &mut Pixmap, n: &Node, network: &figz_doc::VectorNetwork, xf: Affine) {
+    let rounded = network.rounded();
+    let net = rounded.as_ref().unwrap_or(network);
+    for (i, region) in net.regions.iter().enumerate() {
+        let paints = region.fills.as_deref().unwrap_or(&n.fills);
+        if let Some(mut path) = net.region_path(i) {
+            let (pw, ph, frame) = region.paint_frame(n.width, n.height);
+            path.apply_affine(frame.inverse());
+            let Some(tp) = ts_path(&path) else { continue };
+            let rule = if region.winding == figz_doc::WindingRule::EvenOdd { FillRule::EvenOdd } else { FillRule::Winding };
+            fill_with(pix, &tp, paints, pw, ph, xf * frame, rule, ctx, None);
+        }
+    }
+}
 
 /// Fills, `over_fills`, children (clipped), strokes and text of a node, without opacity/effects.
 fn draw_content(ctx: &Ctx, pix: &mut Pixmap, n: &Node, xf: Affine, depth: usize, over_fills: OverFills) {
@@ -733,14 +829,18 @@ fn draw_content(ctx: &Ctx, pix: &mut Pixmap, n: &Node, xf: Affine, depth: usize,
             let closed = figz_doc::geometry::is_closed(n) || matches!(n.kind, NodeKind::BooleanOp { .. });
             let splatted = ctx.lod && closed && lod::splat_fills(pix, n, xf);
             let clips = n.clip && n.kind.is_frame_like() && !n.children.is_empty();
+            let styled_network = region_painted(n);
             // The outline fills, clips children to rounded corners and strokes booleans.
-            let outline = if splatted && !(clips && n.corners.uniform() != Some(0.0)) { None } else { node_outline(doc, n) };
-            if !splatted
-                && let Some((path, rule)) = &outline
-                && closed
-                && let Some(tp) = ts_path(path)
-            {
-                fill_with(pix, &tp, &n.fills, w, h, xf, *rule, ctx, None);
+            let outline =
+                if styled_network.is_some() || (splatted && !(clips && n.corners.uniform() != Some(0.0))) { None } else { node_outline(doc, n) };
+            if !splatted && closed {
+                if let Some(network) = styled_network {
+                    fill_vector_regions(ctx, pix, n, network, xf);
+                } else if let Some((path, rule)) = &outline
+                    && let Some(tp) = ts_path(path)
+                {
+                    fill_with(pix, &tp, &n.fills, w, h, xf, *rule, ctx, None);
+                }
             }
             if let Some(f) = over_fills {
                 f(pix);

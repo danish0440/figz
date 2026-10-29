@@ -35,6 +35,9 @@ impl Effect {
 impl TextStyle {
     pub fn for_each_color_mut(&mut self, f: &mut ColorVisitor) {
         self.fills.iter_mut().flatten().for_each(|p| p.for_each_color_mut(f));
+        if let Some(c) = self.decoration_look.as_deref_mut().and_then(|l| l.color.as_mut()) {
+            f(c);
+        }
     }
 }
 
@@ -57,6 +60,9 @@ impl Node {
                 f(&mut prototype.background);
             }
             NodeKind::Text(t) => t.for_each_color_mut(f),
+            NodeKind::Vector { network } => {
+                network.regions.iter_mut().filter_map(|r| r.fills.as_mut()).flatten().for_each(|p| p.for_each_color_mut(f))
+            }
             _ => {}
         }
         for it in &mut self.interactions {
