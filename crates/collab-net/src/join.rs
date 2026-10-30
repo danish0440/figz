@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use figz_collab::Client;
 use figz_collab::message::{ClientMsg, Peer, Resume, ServerMsg};
-use figz_engine::live::{Event, Role, SessionInfo, Status, TOO_LARGE_TO_JOIN};
+use figz_engine::live::{Event, MAX_PEERS, Role, SessionInfo, Status, TOO_LARGE_TO_JOIN};
 
 use crate::inbox::Inbox;
 use crate::invite::Invite;
@@ -189,12 +189,12 @@ pub(crate) enum Taken {
 /// in answer must go out on this connection.
 pub(crate) fn take(m: ServerMsg, cfg: &GuestConfig, inbox: &Inbox, seen: &mut Seen, resume: &Resuming, welcomed: &dyn Fn()) -> Taken {
     match m {
-        ServerMsg::Welcome { session, client_id, seq, ref peers, access, .. } => {
+        ServerMsg::Welcome { session, client_id, seq, ref peers, access, secret, .. } => {
             if let Ok(mut r) = resume.lock() {
-                *r = Some(Resume { session, client_id, seq });
+                *r = Some(Resume { session, client_id, seq, secret });
             }
             // The sync client opens the document (and fills in its name and pages).
-            let peers = peers.clone();
+            let peers: Vec<Peer> = peers.iter().take(MAX_PEERS).cloned().collect();
             let inv = &cfg.invite;
             let info = SessionInfo {
                 role: Role::Guest,
@@ -224,7 +224,16 @@ pub(crate) fn take(m: ServerMsg, cfg: &GuestConfig, inbox: &Inbox, seen: &mut Se
                 inbox.push(Event::Welcome { info: info.clone(), peers: seen.peers.clone() });
             }
             _ => {
-                seen.peers.retain(|q| q.client_id != p.client_id);
+                match seen.peers.iter().position(|q| q.client_id == p.client_id) {
+                    Some(i) => {
+                        seen.peers.remove(i);
+                    }
+                    None if seen.peers.len() >= MAX_PEERS => {
+                        log::warn!("live session: {MAX_PEERS} people already here; leaving out another");
+                        return Taken::Continue;
+                    }
+                    None => {}
+                }
                 seen.peers.push(p.clone());
                 inbox.push(Event::PeerJoined(p));
             }

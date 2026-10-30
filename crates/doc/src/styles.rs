@@ -268,8 +268,19 @@ impl Variables {
         self.variables.iter().find(|v| v.id == id || v.name == id)
     }
 
+    /// Look up an already resolved variable id (a stored binding or alias): exact ids only, so a
+    /// variable named like an id never stands in for it.
+    pub fn get_by_id(&self, id: &str) -> Option<&Variable> {
+        self.variables.iter().find(|v| v.id == id)
+    }
+
     pub fn collection(&self, id: &str) -> Option<&Collection> {
         self.collections.iter().find(|c| c.id == id || c.name == id)
+    }
+
+    /// Look up a stored collection reference by exact id, without matching collection names.
+    pub fn collection_by_id(&self, id: &str) -> Option<&Collection> {
+        self.collections.iter().find(|c| c.id == id)
     }
 
     /// Resolve `id` in `modes` (collection → chosen mode; default mode otherwise), following aliases
@@ -277,8 +288,8 @@ impl Variables {
     pub fn resolve(&self, id: &str, modes: &BTreeMap<CollectionId, ModeId>) -> Option<VariableValue> {
         let mut cur = id.to_string();
         for _ in 0..32 {
-            let var = self.get(&cur)?;
-            let coll = self.collection(&var.collection)?;
+            let var = self.get_by_id(&cur)?;
+            let coll = self.collection_by_id(&var.collection)?;
             let mode = modes.get(&coll.id).filter(|m| var.values.contains_key(*m)).or_else(|| coll.default_mode())?;
             match var.values.get(mode).or_else(|| var.values.values().next())? {
                 VariableValue::Alias(next) => cur = next.clone(),

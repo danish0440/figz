@@ -39,6 +39,9 @@ pub struct Config {
     pub compact_after: usize,
     /// …or once the log is this large (MiB).
     pub compact_mb: u64,
+    /// Most MiB of recent batches a file in use keeps in memory for apps that reconnect (one
+    /// further behind catches up with the whole file).
+    pub max_log_mb: u64,
     /// Most plugin versions the plugin directory keeps (0 turns it off).
     pub max_plugins: usize,
     /// Largest plugin bundle, in MiB.
@@ -84,6 +87,7 @@ impl Default for Config {
             max_people: 256,
             compact_after: 1000,
             compact_mb: 16,
+            max_log_mb: 64,
             max_plugins: 500,
             max_plugin_mb: 16,
             max_plugins_mb: 1024,
@@ -143,6 +147,14 @@ impl Config {
                 client_max - 1
             ));
         }
+        if self.people() < self.max_people {
+            out.push(format!(
+                "max_people is {}: the app keeps track of at most {} people in a file, so {} are let in",
+                self.max_people,
+                self.people(),
+                self.people()
+            ));
+        }
         if !self.open_publish {
             return out;
         }
@@ -165,6 +177,12 @@ impl Config {
             out.push("open_publish is on with idle_days = 0: files published without the key are never deleted".into());
         }
         out
+    }
+
+    /// Most people in one file at once: `max_people`, lowered to what the app keeps track of
+    /// ([`figz_collab::message::MAX_PEERS`]).
+    pub fn people(&self) -> usize {
+        self.max_people.min(figz_collab::message::MAX_PEERS)
     }
 
     /// The trusted proxy's address, when set.
@@ -209,6 +227,7 @@ impl Config {
             ("max_people", self.max_people as u64),
             ("compact_after", self.compact_after as u64),
             ("compact_mb", self.compact_mb),
+            ("max_log_mb", self.max_log_mb),
             ("max_plugin_mb", self.max_plugin_mb),
             ("max_plugins_mb", self.max_plugins_mb),
         ] {
@@ -216,7 +235,7 @@ impl Config {
                 return Err(format!("`{name}` must be at least 1"));
             }
         }
-        if self.file_mb() > 4096 || self.compact_mb > 4096 {
+        if self.file_mb() > 4096 || self.compact_mb > 4096 || self.max_log_mb > 4096 {
             return Err("sizes are in MiB and at most 4096".into());
         }
         // A bundle travels in one message (at most 64 MiB) next to its entry.
@@ -274,17 +293,18 @@ impl Config {
         usize::try_from(self.file_mb().max(self.max_plugin_mb).saturating_add(1).saturating_mul(1 << 20)).unwrap_or(usize::MAX)
     }
 
-    /// The collaboration core's part: when open, messages as large as a file at most, and the
-    /// batches kept for reconnecting clients (in memory, and in the file's snapshot) at most a
-    /// quarter of a file's bytes (256 KiB at least).
+    /// The collaboration core's part: the batches kept for reconnecting clients (in memory, and
+    /// in the file's snapshot) at most `max_log_mb`; when open, messages as large as a file at
+    /// most, and those batches also at most a quarter of a file's bytes (256 KiB at least).
     fn core(&self) -> figz_collab::Limits {
-        let base = figz_collab::Limits { max_peers: self.max_people, ..figz_collab::Limits::default() };
+        let bytes = |mb: u64| usize::try_from(mb.saturating_mul(1 << 20)).unwrap_or(usize::MAX);
+        let base = figz_collab::Limits { max_peers: self.people(), max_log_bytes: bytes(self.max_log_mb), ..figz_collab::Limits::default() };
         if !self.open_publish {
             return figz_collab::Limits { max_message_bytes: base.max_message_bytes.max(self.open_message()), ..base };
         }
         let max = self.open_message();
-        let file = usize::try_from(self.file_mb().saturating_mul(1 << 20)).unwrap_or(usize::MAX);
-        figz_collab::Limits { max_message_bytes: max, max_log_bytes: (file / 4).max(256 << 10), ..base }
+        let log = (bytes(self.file_mb()) / 4).max(256 << 10).min(base.max_log_bytes);
+        figz_collab::Limits { max_message_bytes: max, max_log_bytes: log, ..base }
     }
 
     /// The transport's part. A private server keeps the defaults; open to the public, connections

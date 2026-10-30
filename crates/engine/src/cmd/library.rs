@@ -5,16 +5,19 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use figz_doc::*;
+use figz_doc::{Collection, Document, ImportedComponent, ImportedRecord, LibraryLink, LibraryManifest, NodeId, PublishedLibrary, VariableId};
 use serde_json::{Value, json};
 
 use figz_collab::message::{LibraryReply, LibraryReq};
 
 use super::CommandSpec;
-use crate::library::*;
+use crate::library::{
+    Pending, Selection, absolute_path, accept_updates, asset_root, default_selection, find_link, import, import_styles, import_variables,
+    is_remote_variable, pending, prune, publish, publishable, published_collections, published_variables,
+};
 use crate::library_server::{archive, is_server_link, read_archive, shown_path};
 use crate::live::{NetReply, NetRequest, PublishOptions};
-use crate::params::*;
+use crate::params::{boolean, get, id_of, num, req_string, string};
 use crate::{EngineError, Result, Session, bad, spec};
 
 /// Longest library description kept (chars).
@@ -81,6 +84,13 @@ pub fn specs() -> Vec<CommandSpec> {
             "{}  → the components, styles, variable collections and variables with a newer published version, and variables new to a library collection this file extends (listed without an `id`: no copy yet)",
             false,
             updates
+        ),
+        spec!(
+            "library.check",
+            "Check team libraries for updates",
+            "{library? (an enabled team library: id, name or link; all of this file's when omitted)}  asks their servers for the latest version in the background, and from then on checks them by themselves: opening a file doesn't contact the server of a team library you haven't added or checked → {checking}",
+            false,
+            check
         ),
         spec!(
             "library.acceptUpdates",
@@ -235,7 +245,7 @@ fn alias(s: &mut Session, p: &Value) -> Result<Value> {
     let kind = doc.variables.get(&own).filter(|v| !is_remote_variable(doc, &v.id)).map(|v| v.kind);
     let kind = kind.ok_or_else(|| bad(cmd, format!("no local variable `{own}`")))?;
     let (lib, key) = variable_arg(s, cmd, p, "alias")?;
-    if lib.doc.variables.get(&key).is_some_and(|v| v.kind != kind) {
+    if lib.doc.variables.get_by_id(&key).is_some_and(|v| v.kind != kind) {
         return Err(bad(cmd, "the library variable has another type"));
     }
     let local = import_variable(s, &lib, &key)?;
@@ -464,7 +474,8 @@ fn swap_cmd(s: &mut Session, p: &Value) -> Result<Value> {
 
 fn assets_json(lib: &PublishedLibrary) -> Value {
     let m = &lib.manifest;
-    let modes = |c: &str| lib.doc.variables.collection(c).map(|c| c.modes.iter().map(|x| json!({"id": x.id, "name": x.name})).collect::<Vec<_>>());
+    let modes =
+        |c: &str| lib.doc.variables.collection_by_id(c).map(|c| c.modes.iter().map(|x| json!({"id": x.id, "name": x.name})).collect::<Vec<_>>());
     json!({
         "components": m.components.iter().filter(|a| a.published).map(|a| json!({"id": a.id, "name": a.name, "set": a.set, "version": a.version})).collect::<Vec<_>>(),
         "styles": m.styles.iter().filter(|x| x.published).map(|x| json!({"id": x.id, "name": x.name, "type": x.kind, "version": x.version})).collect::<Vec<_>>(),
@@ -510,7 +521,7 @@ fn list(s: &mut Session, p: &Value) -> Result<Value> {
         res["publishable"] = json!({
             "components": all.components.iter().filter_map(|c| doc.node(*c).map(|n| json!({"id": c, "name": n.name, "selected": def.components.contains(c)}))).collect::<Vec<_>>(),
             "styles": all.styles.iter().filter_map(|x| doc.style(x).map(|st| json!({"id": st.id, "name": st.name, "selected": def.styles.contains(x)}))).collect::<Vec<_>>(),
-            "collections": all.collections.iter().filter_map(|x| doc.variables.collection(x).map(|c| json!({"id": c.id, "name": c.name, "selected": def.collections.contains(x)}))).collect::<Vec<_>>(),
+            "collections": all.collections.iter().filter_map(|x| doc.variables.collection_by_id(x).map(|c| json!({"id": c.id, "name": c.name, "selected": def.collections.contains(x)}))).collect::<Vec<_>>(),
         });
     }
     Ok(res)
@@ -521,6 +532,10 @@ fn add(s: &mut Session, p: &Value) -> Result<Value> {
     let raw = req_string(cmd, p, "path")?;
     let path = if is_server_link(&raw) { raw.trim().to_string() } else { absolute_path(raw.trim()) };
     let lib = s.load_library(&path)?;
+    if is_server_link(&path) {
+        // Added by you: its server may be checked for updates from now on (#1097).
+        s.allow_library(&path);
+    }
     let m = &lib.manifest;
     let doc = s.doc()?;
     if doc.published.as_ref().is_some_and(|me| me.manifest.id == m.id) {
@@ -544,6 +559,27 @@ fn add(s: &mut Session, p: &Value) -> Result<Value> {
     out["version"] = json!(m.version);
     out["path"] = json!(path);
     Ok(out)
+}
+
+/// `library.check`: the user lets this file's team libraries (or one) be checked; they are asked now.
+fn check(s: &mut Session, p: &Value) -> Result<Value> {
+    let cmd = "library.check";
+    let doc = s.doc()?;
+    let links: Vec<String> = match string(p, "library") {
+        Some(key) => {
+            let l = find_link(doc, &key).ok_or_else(|| bad(cmd, format!("no enabled library `{key}` (library.list shows them)")))?;
+            if !is_server_link(&l.path) {
+                return Err(bad(cmd, format!("`{key}` is a library file, not a team library on a server")));
+            }
+            vec![l.path.clone()]
+        }
+        None => doc.libraries.enabled.iter().filter(|l| is_server_link(&l.path)).map(|l| l.path.clone()).collect(),
+    };
+    for l in &links {
+        s.allow_library(l);
+    }
+    s.refresh_server_libraries();
+    Ok(json!({"checking": links.len()}))
 }
 
 fn remove(s: &mut Session, p: &Value) -> Result<Value> {

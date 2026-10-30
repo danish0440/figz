@@ -170,3 +170,17 @@ impl Raw {
         }
     }
 }
+
+/// A one-page file with one rectangle, named `name`, as a snapshot to publish.
+pub fn snapshot(name: &str) -> Vec<figz_collab::Change> {
+    let mut d = figz_doc::Document::new(name);
+    let page = d.first_page().unwrap();
+    d.create(page, figz_doc::NodeKind::Rectangle, "Card", 0.0, 0.0, 100.0, 60.0).unwrap();
+    d.repair();
+    figz_collab::Replica::new(d).snapshot().unwrap()
+}
+
+/// An address from text.
+pub fn ip(s: &str) -> std::net::IpAddr {
+    s.parse().unwrap()
+}

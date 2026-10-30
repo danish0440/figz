@@ -126,6 +126,34 @@ fn hit_test_respects_z_and_clip() {
 }
 
 #[test]
+fn region_paints_participate_in_colors_images_and_pattern_remapping() {
+    let mut d = Document::new("region resources");
+    let p = page(&d);
+    let group = d.create(p, NodeKind::Group, "Group", 0.0, 0.0, 40.0, 20.0).unwrap();
+    let source = d.create(group, NodeKind::Rectangle, "Source", 0.0, 0.0, 4.0, 4.0).unwrap();
+    let mut network = VectorNetwork::from_points(&[Point::new(0.0, 0.0), Point::new(20.0, 0.0), Point::new(20.0, 20.0), Point::new(0.0, 20.0)], true);
+    network.regions[0].fills = Some(vec![
+        figz_color::Paint::solid(figz_color::Color::from_hex("FF0000").unwrap()),
+        figz_color::Paint::image("region-image", figz_color::ImageScaleMode::Fill),
+        figz_color::Paint::pattern(source.0),
+    ]);
+    let vector = d.create(group, NodeKind::Vector { network }, "Vector", 0.0, 0.0, 20.0, 20.0).unwrap();
+    assert!(used_images(&d).contains("region-image"));
+    let dup = d.duplicate_into(group, p, None).unwrap();
+    let copied_children = d.node(dup).unwrap().children.clone();
+    let copied_source = copied_children[0];
+    let copied_vector = d.node(copied_children[1]).unwrap();
+    let NodeKind::Vector { network } = &copied_vector.kind else { panic!() };
+    let figz_color::PaintKind::Pattern(pattern) = &network.regions[0].fills.as_ref().unwrap()[2].kind else { panic!() };
+    assert_eq!(pattern.source, copied_source.0);
+
+    let red = figz_color::Color::from_hex("FF0000").unwrap();
+    d.map_colors(|c| if c == red { figz_color::Color::BLACK } else { c });
+    let NodeKind::Vector { network } = &d.node(vector).unwrap().kind else { panic!() };
+    assert_eq!(network.regions[0].fills.as_ref().unwrap()[0].solid_color(), Some(figz_color::Color::BLACK));
+}
+
+#[test]
 fn click_target_rules() {
     let mut d = Document::new("x");
     let p = page(&d);
@@ -212,7 +240,7 @@ fn vector_network_paths() {
     let mut bad = VectorNetwork {
         vertices: vec![Vertex::new(0.0, 0.0)],
         segments: vec![Segment::line(0, 5)],
-        regions: vec![Region { loops: vec![vec![0, 9]], winding: WindingRule::EvenOdd }],
+        regions: vec![Region { loops: vec![vec![0, 9]], winding: WindingRule::EvenOdd, fills: None, ..Default::default() }],
     };
     bad.sanitize();
     assert!(bad.segments.is_empty());
@@ -283,6 +311,42 @@ fn variables_resolve_modes_and_aliases() {
 }
 
 #[test]
+fn variables_resolve_stored_ids_never_by_name() {
+    let mut v = Variables::default();
+    v.collections.push(Collection {
+        id: "c1".into(),
+        name: "Theme".into(),
+        modes: vec![Mode { id: "m".into(), name: "Mode 1".into() }],
+        extends: None,
+    });
+    let var = |id: &str, name: &str, value: VariableValue| Variable {
+        id: id.into(),
+        name: name.into(),
+        collection: "c1".into(),
+        kind: VariableType::Color,
+        values: std::collections::BTreeMap::from([("m".to_string(), value)]),
+        description: String::new(),
+        scopes: None,
+        hidden_from_publishing: false,
+        extends: None,
+        overrides: Default::default(),
+        code_syntax: Default::default(),
+    };
+    let red = Color::from_hex("#FF0000").unwrap();
+    let blue = Color::from_hex("#0D99FF").unwrap();
+    // Named like the next variable's id, and like an id that no longer exists.
+    v.variables.push(var("VariableID:1", "VariableID:2", VariableValue::Color(red)));
+    v.variables.push(var("VariableID:2", "surface", VariableValue::Color(blue)));
+    v.variables.push(var("VariableID:3", "VariableID:9", VariableValue::Color(red)));
+    v.variables.push(var("VariableID:4", "alias", VariableValue::Alias("VariableID:9".into())));
+    let modes = std::collections::BTreeMap::new();
+    assert_eq!(v.resolve("VariableID:2", &modes), Some(VariableValue::Color(blue)));
+    // A deleted id stays unresolved instead of picking up the variable named like it.
+    assert_eq!(v.resolve("VariableID:9", &modes), None);
+    assert_eq!(v.resolve("VariableID:4", &modes), None);
+}
+
+#[test]
 fn serde_roundtrip_and_repair() {
     let mut d = Document::new("x");
     let p = page(&d);
@@ -324,6 +388,20 @@ fn repair_drops_cycles_and_repeated_children() {
     assert!(bad.node(f).is_none() && bad.node(g).is_none());
     assert_eq!(bad.node(p).unwrap().children, vec![r]);
     assert_eq!(bad.subtree(p), vec![p, r]);
+}
+
+#[test]
+fn validate_caps_the_issue_list() {
+    let mut d = Document::new("x");
+    let p = page(&d);
+    let f = d.create(p, NodeKind::Frame, "F", 0.0, 0.0, 100.0, 100.0).unwrap();
+    let g = d.create(f, NodeKind::Frame, "G", 0.0, 0.0, 10.0, 10.0).unwrap();
+    let mut v = serde_json::to_value(&d).unwrap();
+    v["nodes"][f.to_string()]["children"] = serde_json::json!(vec![g; 5000]);
+    let bad: Document = serde_json::from_value(v).unwrap();
+    let issues = bad.validate();
+    assert!(!issues.is_empty());
+    assert!(issues.len() <= 100, "{}", issues.len());
 }
 
 #[test]
@@ -463,4 +541,184 @@ fn text_style_empty_range_links_and_unlinks_all() {
     assert_eq!(e.style.style_id.as_deref(), Some("S"));
     e.unlink_text_style(0, 0);
     assert!(e.style.style_id.is_none());
+}
+
+#[test]
+fn stale_next_id_never_overwrites_existing_nodes() {
+    let mut d = Document::new("x");
+    let p = page(&d);
+    let f = d.create(p, NodeKind::Frame, "F", 0.0, 0.0, 100.0, 100.0).unwrap();
+    let a = d.create(f, NodeKind::Rectangle, "A", 0.0, 0.0, 10.0, 10.0).unwrap();
+    let mut v = serde_json::to_value(&d).unwrap();
+    v["next_id"] = serde_json::json!(1);
+    let mut bad: Document = serde_json::from_value(v).unwrap();
+    let before: Vec<(NodeId, String, Option<NodeId>)> =
+        [p, f, a].iter().map(|i| (*i, bad.node(*i).unwrap().name.clone(), bad.node(*i).unwrap().parent)).collect();
+    let n = bad.node_count();
+    let copy = bad.duplicate_into(f, p, None).unwrap();
+    assert!(![p, f, a].contains(&copy));
+    assert_eq!(bad.node_count(), n + 2);
+    let copies = bad.duplicate_all_into(&[f], p).unwrap();
+    assert_eq!(bad.node_count(), n + 4);
+    assert!(copies.iter().all(|c| ![p, f, a, copy].contains(c)));
+    for (i, name, parent) in &before {
+        let node = bad.node(*i).unwrap();
+        assert_eq!((&node.name, node.parent), (name, *parent));
+    }
+    assert!(bad.validate().is_empty(), "{:?}", bad.validate());
+
+    // A paste whose id map points at an existing node fails and changes nothing.
+    let nodes: Vec<Node> = bad.subtree(f).into_iter().filter_map(|i| bad.node(i).cloned()).collect();
+    let mut map: BTreeMap<NodeId, NodeId> = nodes.iter().map(|n| (n.id, bad.alloc_id())).collect();
+    map.insert(a, p);
+    let snapshot = bad.clone();
+    assert!(bad.paste_nodes(&nodes, &map, f, p, None).is_err());
+    assert_eq!(bad, snapshot);
+    assert_eq!(bad.node(p).unwrap().name, snapshot.node(p).unwrap().name);
+    assert!(bad.validate().is_empty(), "{:?}", bad.validate());
+
+    // So does one that maps two nodes to the same new id.
+    let mut map: BTreeMap<NodeId, NodeId> = nodes.iter().map(|n| (n.id, bad.alloc_id())).collect();
+    map.insert(a, map[&f]);
+    assert!(bad.paste_nodes(&nodes, &map, f, p, None).is_err());
+    assert_eq!(bad, snapshot);
+}
+
+#[test]
+fn hit_test_even_odd_vector_hole_misses() {
+    let ring = |rule| {
+        let sq = |o: f64, s: f64, base: usize| {
+            (
+                [(o, o), (o + s, o), (o + s, o + s), (o, o + s)].map(|(x, y)| Vertex::new(x, y)),
+                [Segment::line(base, base + 1), Segment::line(base + 1, base + 2), Segment::line(base + 2, base + 3), Segment::line(base + 3, base)],
+            )
+        };
+        let (v1, s1) = sq(0.0, 200.0, 0);
+        let (v2, s2) = sq(60.0, 80.0, 4);
+        VectorNetwork {
+            vertices: v1.into_iter().chain(v2).collect(),
+            segments: s1.into_iter().chain(s2).collect(),
+            regions: vec![Region { loops: vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7]], winding: rule, ..Default::default() }],
+        }
+    };
+    let mut d = Document::new("x");
+    let p = page(&d);
+    let eo = d.create(p, NodeKind::Vector { network: ring(WindingRule::EvenOdd) }, "V", 0.0, 0.0, 200.0, 200.0).unwrap();
+    assert_eq!(d.hit_test(p, Point::new(20.0, 100.0), 0.0, None), Some(eo));
+    assert_eq!(d.hit_test(p, Point::new(100.0, 100.0), 0.0, None), None, "the hole is not filled");
+    let mut d = Document::new("x");
+    let p = page(&d);
+    let nz = d.create(p, NodeKind::Vector { network: ring(WindingRule::NonZero) }, "V", 0.0, 0.0, 200.0, 200.0).unwrap();
+    assert_eq!(d.hit_test(p, Point::new(100.0, 100.0), 0.0, None), Some(nz));
+}
+
+#[test]
+fn is_ancestor_holds_for_very_deep_chains() {
+    let mut d = Document::new("x");
+    let root = d.create(page(&d), NodeKind::Frame, "root", 0.0, 0.0, 1.0, 1.0).unwrap();
+    let mut leaf = root;
+    for _ in 0..10_005 {
+        leaf = d.create(leaf, NodeKind::Frame, "n", 0.0, 0.0, 1.0, 1.0).unwrap();
+    }
+    assert!(d.is_ancestor(root, leaf));
+    assert!(matches!(d.reparent(root, leaf, None), Err(DocError::Cycle(..))));
+}
+
+#[test]
+fn render_bounds_stop_where_drawing_stops_on_very_deep_chains() {
+    // A crafted file nests groups far deeper than anything draws (#1062). The leaf counts while
+    // it's within the renderer's depth and is left out past it, as the renderer leaves it out.
+    let chain = |depth: usize| {
+        let mut d = Document::new("x");
+        let mut parent = page(&d);
+        for _ in 0..depth {
+            parent = d.create(parent, NodeKind::Group, "G", 0.0, 0.0, 10.0, 10.0).unwrap();
+        }
+        d.create(parent, NodeKind::Rectangle, "R", 100.0, 100.0, 10.0, 10.0).unwrap();
+        let top = d.node(page(&d)).unwrap().children[0];
+        d.world_render_bounds(top).unwrap()
+    };
+    assert_eq!(chain(MAX_RENDER_DEPTH).x1, 110.0);
+    assert_eq!(chain(20_000).x1, 10.0);
+}
+
+#[test]
+fn text_insert_at_run_boundary_keeps_runs_disjoint() {
+    let mut t = TextData::new("0123456789");
+    t.restyle(0, 5, |s| s.font_size = 20.0);
+    t.restyle(5, 10, |s| s.font_size = 30.0);
+    t.replace_range(5, 5, "xx");
+    let runs: Vec<(usize, usize)> = t.runs.iter().map(|r| (r.start, r.end)).collect();
+    assert_eq!(runs, vec![(0, 7), (7, 12)]);
+}
+
+#[test]
+fn many_small_vector_subpaths_build_and_stroke_without_rescans() {
+    // Many closed subpaths whose last point repeats the start (#F-332), a long open chain (#F-334)
+    // and a big rounded polygon (#F-333): each used to scan the whole network per step.
+    let mut p = figz_geom::kurbo::BezPath::new();
+    for i in 0..3_000 {
+        let x = f64::from(i) * 10.0;
+        p.move_to((x, 0.0));
+        p.line_to((x + 5.0, 0.0));
+        p.line_to((x + 5.0, 5.0));
+        p.line_to((x, 0.0));
+        p.close_path();
+    }
+    let net = VectorNetwork::from_path(&p);
+    assert_eq!(net.vertices.len(), 3 * 3_000);
+    assert_eq!(net.regions[0].loops.len(), 3_000);
+    assert!(net.segments.iter().all(|s| s.a < net.vertices.len() && s.b < net.vertices.len()));
+    assert_eq!(net.stroke_runs().len(), 3_000);
+
+    let pts: Vec<Point> = (0..20_000).map(|i| Point::new(f64::from(i), f64::from(i % 7))).collect();
+    let chain = VectorNetwork::from_points(&pts, false);
+    let runs = chain.stroke_runs();
+    assert_eq!(runs.len(), 1);
+    assert!(!runs[0].closed);
+
+    let ring: Vec<Point> = (0..4_000)
+        .map(|i| {
+            let t = f64::from(i) / 4_000.0 * std::f64::consts::TAU;
+            Point::new(1000.0 * t.cos(), 1000.0 * t.sin() * if i % 2 == 0 { 1.0 } else { 0.9 })
+        })
+        .collect();
+    let mut poly = VectorNetwork::from_points(&ring, true);
+    for v in &mut poly.vertices {
+        v.radius = 0.5;
+    }
+    let rounded = poly.rounded().unwrap();
+    assert!(rounded.regions[0].loops[0].len() > poly.segments.len(), "arcs are walked between the sides");
+    assert_eq!(rounded.regions[0].loops[0].len(), rounded.segments.len());
+}
+
+#[test]
+fn two_segment_closed_loop_rounded_corners() {
+    let mut v0 = Vertex::new(0.0, 0.0);
+    v0.radius = 2.0;
+    let mut v1 = Vertex::new(10.0, 0.0);
+    v1.radius = 2.0;
+    let net = VectorNetwork {
+        vertices: vec![v0, v1],
+        segments: vec![Segment { a: 0, b: 1, ta: (0.0, 0.0), tb: (0.0, 0.0) }, Segment { a: 1, b: 0, ta: (0.0, 5.0), tb: (0.0, -5.0) }],
+        regions: vec![Region { loops: vec![vec![0, 1]], winding: WindingRule::NonZero, ..Default::default() }],
+    };
+    let r = net.rounded().unwrap();
+    assert_eq!(r.regions[0].loops[0].len(), 4, "both arcs are in the loop");
+    let path = net.fill_path();
+    assert!(!path.elements().is_empty());
+}
+
+#[test]
+fn stored_variable_ids_resolve_only_their_exact_collection() {
+    let mut vars = crate::proto_expr_tests::vars();
+    // The wrong collection's modes force the old resolver's first-value fallback (dark).
+    let mut shadow = vars.collections[0].clone();
+    shadow.id = "shadow".into();
+    shadow.name = "c".into();
+    shadow.modes = vec![Mode { id: "other".into(), name: "Other".into() }];
+    vars.collections.insert(0, shadow);
+    assert_eq!(vars.resolve("n", &Default::default()), Some(VariableValue::Number(3.0)));
+    vars.collections.retain(|c| c.id != "c");
+    assert_eq!(vars.resolve("n", &Default::default()), None);
 }
