@@ -1,6 +1,19 @@
 rebrand figcraft -> FigZ
-about credit inserted in: ['crates/ui-egui/src/dialogs.rs (fallback, after line 128)']
+about credit inserted in: ['crates/ui-egui/src/dialogs.rs (fallback, after line 150)']
 launcher patches: []
-lines still naming ArtCraft/getartcraft/discord (non-doc): 2
-crates/ui-egui/src/dialogs.rs:129: // PINTAZ-ABOUT: required credit (Apache-2.0 change notice; ArtCraft brand licence)
-crates/ui-egui/src/dialogs.rs:131: ui.label("Based on FigCraft by Storytold (ArtCraft), Apache-2.0. Changes by PINTAZ TECHNOLOGIES.");
+lines still naming ArtCraft/getartcraft/discord (non-doc): 15
+crates/ui-egui/src/dialogs.rs:151: // PINTAZ-ABOUT: required credit (Apache-2.0 change notice; ArtCraft brand licence)
+crates/ui-egui/src/dialogs.rs:153: ui.label("Based on FigCraft by Storytold (ArtCraft), Apache-2.0. Changes by PINTAZ TECHNOLOGIES.");
+packaging/windows/install-policy.wxi:34: <SetProperty Id="INSTALLFOLDER" Action="CraftDefaultMachineFolder" Value="[%ProgramFiles(x86)]\ArtCraft\FigZ\" After="CraftRestoreUserFolder" Sequence="ui" Cond
+packaging/windows/install-policy.wxi:35: <SetProperty Id="INSTALLFOLDER" Action="CraftDefaultMachineFolder32" Value="[%ProgramFiles]\ArtCraft\FigZ\" After="CraftDefaultMachineFolder" Sequence="ui" Cond
+packaging/windows/install-policy.wxi:36: <SetProperty Id="INSTALLFOLDER" Action="CraftDefaultUserFolder" Value="[LocalAppDataFolder]Programs\ArtCraft\FigZ\" After="CraftDefaultMachineFolder32" Sequence
+packaging/windows/install-policy.wxi:38: <SetProperty Id="INSTALLFOLDER" Action="CraftDefaultMachineFolder" Value="[%ProgramW6432]\ArtCraft\FigZ\" After="CraftRestoreUserFolder" Sequence="ui" Condition
+packaging/windows/install-policy.wxi:39: <SetProperty Id="INSTALLFOLDER" Action="CraftDefaultUserFolder" Value="[LocalAppDataFolder]Programs\ArtCraft\FigZ\" After="CraftDefaultMachineFolder" Sequence="
+packaging/windows/install-policy.wxi:49: <Control Id="Info" Type="Text" X="20" Y="50" Width="330" Height="30" Text="{\CraftScopeText}An update keeps the existing folder. New copies use the ArtCraft fol
+packaging/windows/check-install-policy.ps1:58: if ($dirs['INSTALLFOLDER'][0] -ne 'CraftSuiteFolder' -or $dirs['CraftSuiteFolder'][1] -ne 'ArtCraft' -or
+packaging/windows/check-install-policy.ps1:60: throw 'Launcher new-install folder must be under the per-user ArtCraft suite root.'
+packaging/windows/check-install-policy.ps1:91: $directories['CraftSuiteFolder'][1] -ne 'ArtCraft') { throw 'Expected the app under the ArtCraft suite folder.' }
+packaging/windows/check-install-policy.ps1:164: $machineFolder = (Join-Path $machineRoot "ArtCraft\$($policy.name)") + '\'
+packaging/windows/check-install-policy.ps1:174: $wanted = if ($scope -eq '1') { $machineFolder } else { (Join-Path $env:LOCALAPPDATA "Programs\ArtCraft\$($policy.name)") + '\' }
+packaging/linux/flatpak/com.pintaz.figz.yml:25: - --filesystem=xdg-data/ArtCraft/versions:ro
+packaging/linux/flatpak/com.pintaz.figz.bundle.yml:20: - --filesystem=xdg-data/ArtCraft/versions:ro
