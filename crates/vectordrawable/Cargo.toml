@@ -1,0 +1,21 @@
+[package]
+name = "figz-vectordrawable"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "FigZ Android Vector Drawable export (shapes, strokes, gradients, clips and vector masks as a <vector> XML drawable)"
+
+[lints]
+workspace = true
+
+[dependencies]
+figz-geom = { workspace = true }
+figz-color = { workspace = true }
+figz-doc = { workspace = true }
+figz-text = { workspace = true }
+figz-render = { workspace = true }
+figz-pathops = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+roxmltree = "0.21"

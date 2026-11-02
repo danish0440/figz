@@ -1,6 +1,6 @@
 # Auto layout and constraints parity
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-17 · **Change:** minor (adding auto layout to an empty frame keeps its size (#369); `node.set` applies auto layout keys only to frames, with warnings (#603); core editor leftovers: auto gap handles, wrapped-line alignment; behaviour suite written from the public documentation, every rule's status; fixes and the missing settings it found) · **Target:** Figma Design (desktop app 126.10.7)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-01 · **Change:** minor (a text keeps a max height or a number of max lines, not both, as the Guide to auto layout says: a max height sets max lines to Auto and max lines remove the max height; Remove all auto layout, as the help center's More layout options has it: `layout.removeAll` takes the auto layout off a frame and every frame nested in it in one undo step; grid auto-placement looks for free cells a 64-bit word at a time and skips what blocks it, with the same placements (#1083); Layout sidebar: Add auto layout (+) is available for groups and converts a single group to a frame in place, with mask order, flow-only inference and Fill sizing preserved; adding auto layout to an empty frame keeps its size (#369); `node.set` applies auto layout keys only to frames, with warnings (#603); core editor leftovers: auto gap handles, wrapped-line alignment; behaviour suite written from the public documentation, every rule's status; fixes and the missing settings it found) · **Target:** Figma Design (desktop app 126.10.7)
 
 Auto layout is the most used layout feature in Figma and the one where small differences (a
 hugging frame one pixel off, text wrapping at another width) break real files. **Breadth ~98%,
@@ -8,6 +8,24 @@ ready ~74% (estimated)**: every rule of the public documentation is a test case 
 positions it implies (`crates/layout/src/behaviour_tests.rs`, 64 cases, and
 `crates/engine/src/al_behaviour_tests.rs` through commands), and all pass; nothing yet against real
 Figma files. Remaining: 3–6 h.
+
+## Adding auto layout to a group
+
+With one group selected, Add auto layout converts that group into a frame in place, retaining its
+id, name, parent and direct children. The Layout sidebar’s +, context menu, Shift+A and API calls
+all dispatch `layout.add`, so they share the conversion and a single undo step restores the group.
+The layout settings are inferred from visible, non-absolute children, matching the layout engine’s
+flow. Hidden and absolute children therefore do not distort direction, gap or padding. A converted
+group keeps Fill sizing on either axis in its auto layout parent. Sorting by position preserves
+mask boundaries and the paint order within masked runs. The sidebar offers Add only when every
+selected container has no auto layout, including mixed selections.
+
+This follows the Figma behavior reported by the contributor and the sidebar workflow users know from
+similar design tools: start with a group and make its children participate in auto layout.
+Wrapping the group would instead make the entire group one layout item, leaving its children
+outside the new frame’s layout flow and adding an unnecessary level to the layer tree. Converting
+the selected container makes later changes to a child’s size reflow its siblings directly.
+Selecting several groups still wraps that selection in a shared auto layout frame.
 
 ## Rules from the documentation
 
@@ -24,6 +42,8 @@ Status: **pass** (a case in the suite holds), **fixed** (the suite found a diver
 | Hug only on auto layout frames (and text); Fill only in an auto layout flow, never on a top-level frame | pass | `al_behaviour_tests::hug_and_fill_only_where_they_apply` |
 | Min/max width and height bound Hug, Fill and Fixed sizes, on frames and children | pass | `sizing_rules`; a fill child at its max leaves the rest to the other fill children (silent on redistribution: CSS flexbox) |
 | A hugging text wider than its max width wraps at the max | pass | `sizing_rules` |
+| A text has a max height or a number of max lines, not both: a max height sets max lines to Auto, a number of max lines removes the max height | **fixed** | both coexisted; `node.set {maxHeight}` and `{maxLines}` and `text.maxLines` keep one of the two (a frame's max height is untouched); `text_behaviour_tests::a_text_has_a_max_height_or_max_lines_not_both` |
+| Remove all auto layout: a frame and all of its nested objects lose their auto layout at once (More layout options) | **added** | `layout.removeAll {ids?}`, one undo step, in the canvas context menu beside Add auto layout; instances and the layers inside them keep theirs; `al_nesting_tests::remove_all_auto_layout_strips_the_frame_and_every_frame_nested_in_it` |
 | Text filling a width wraps and its hugging frame grows with it | pass | `sizing_rules` |
 | A hugging frame follows a child that grows, through nested levels, in one edit and one undo step | pass | `al_behaviour_tests::a_hugging_frame_follows_its_children_through_nested_levels` |
 | Padding per side (uniform, vertical/horizontal, individual) | pass | `padding_and_stroke_rules` |
@@ -69,7 +89,7 @@ Status: **pass** (a case in the suite holds), **fixed** (the suite found a diver
 | Arrow keys move children one place (flows, rows, columns, grid cells, into neighbours) | done | `al_keys_tests.rs` |
 | Constraints: left, right, left and right, centre, scale; top/bottom likewise | done | |
 | Layout grids: columns, rows, grid; stretch/left/centre/right; variables bound | done | |
-| Suggest auto layout / "Add auto layout" on a selection | done | adding auto layout to an empty frame keeps its size, Fixed (it collapsed to 20×20); a frame with content still hugs it, as does a new frame wrapped around a selection (#369). `node.set` with auto layout keys on a mix of layers applies them to the frames and warns about the rest instead of failing the whole call (#603) |
+| Suggest auto layout / "Add auto layout" on a selection | done | the Layout sidebar exposes Add auto layout (+) for groups and frames using the same `layout.add` command as the context menu; a single group becomes a frame in place, keeping its id, name and direct children; adding auto layout to an empty frame keeps its size, Fixed (it collapsed to 20×20); a frame with content still hugs it, as does a new frame wrapped around a selection (#369). `node.set` with auto layout keys on a mix of layers applies them to the frames and warns about the rest instead of failing the whole call (#603) |
 | Real Figma files laid out identically | **not checked** | needs `.fig` or REST import of real files ([gaps](gaps.md) #1, #3) |
 | Performance: re-flow only where sizes or places changed | done | measured in `cargo xtask bench` (components at scale) |
 
@@ -77,6 +97,11 @@ Status: **pass** (a case in the suite holds), **fixed** (the suite found a diver
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-01 | patch | M2: a text layer keeps a max height or a number of max lines, not both ("Text layers cannot have both a max height and a set number of max lines", Guide to auto layout): `node.set {maxHeight}` on a text sets its max lines to Auto, and `node.set {maxLines}` or `text.maxLines` with a number removes its max height. Found by a documentation audit of this page. Test: `text_behaviour_tests::a_text_has_a_max_height_or_max_lines_not_both`. Numbers unchanged |
+| 2026-11-01 | minor | M2: Remove all auto layout ("To remove auto layout from a frame and all of its nested objects at once, right-click on the frame and go to More layout options > Remove all auto layout", Toggle on auto layout in designs): `layout.removeAll {ids?}` strips the frames and every frame nested in them in one undo step, leaving instances and their layers alone; in the canvas context menu beside Add auto layout and in the Actions palette. Found by a documentation audit of this page. Test: `al_nesting_tests::remove_all_auto_layout_strips_the_frame_and_every_frame_nested_in_it`. Numbers unchanged |
+| 2026-10-30 | minor | M8, #1083: grid placement finds free cells on a bitmap, a word at a time, with the same placements; crafted grids of wide children no longer stall a layout pass. Numbers unchanged. |
+| 2026-10-29 | minor | M2 review fixes: conversion preserves mask runs and Fill sizing per axis; layout inference uses visible, non-absolute flow children; the sidebar hides Add for mixed selections containing existing auto layout. Regression coverage includes rendered mask pixels, visible-child positions, parent layout stability and the sidebar accessibility tree. Numbers unchanged |
+| 2026-10-29 | minor | M2: the Layout sidebar exposes Add auto layout (+) for groups. `layout.add` converts one selected group into a frame in place rather than wrapping it: same id, name and direct children; the layout arranges those children, and one undo restores the group. Sidebar, menu, shortcut and API calls all use the corrected command. This follows the contributor’s observed Figma behavior and the workflow familiar to users of similar design tools. Tests cover direct-child reflow, stable hierarchy, undo/redo and wrapping a multi-group selection. Numbers unchanged |
 | 2026-10-17 | minor | Community batch #753: adding auto layout to an empty frame keeps its size, Fixed, while a frame with content hugs it (#369); `node.set` applies auto layout keys to the frames among its targets and warns about the others, and a font style the family lacks warns with the nearest face (#603). Checked over MCP. Numbers unchanged |
 | 2026-10-13 | minor | Auto layout, on-canvas handles of automatic gaps (M2): the handle between spread rows or columns (and between items with an auto gap) shows the distance the layout gives the gap instead of the stored value, and dragging it makes the gap a fixed one from there, as typing a gap in the panel does; one undo step (`gap_handle_tests`). Before, the drag changed a value that had no effect. The documentation is silent on dragging an automatic gap. Numbers unchanged. |
 | 2026-10-13 | minor | Auto layout, wrapped-line alignment (M2): a wrapping layout's lines (rows of a horizontal one, columns of a vertical one) are packed where the cross alignment says (start, centre, end; before, they always sat at the start), stretch when every child fills across the flow, or take the free space between them (`contentAlign: spaceBetween`, the Design panel's Row/Column gap mode, the alignment pad lighting the whole cross axis). Read from REST JSON and `.fig`, written to `.fig`, `align-content` in CSS, an instance override with the other alignment settings. 13 hand-computed layout cases and command tests. Numbers unchanged. |
