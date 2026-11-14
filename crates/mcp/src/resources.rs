@@ -1,4 +1,4 @@
-//! MCP resources: the document, one layer, one command.
+//! MCP resources: the document, one layer, one command and the open comments.
 
 use serde_json::{Value, json};
 
@@ -6,6 +6,7 @@ use crate::backend::Backend;
 
 pub const DOC_URI: &str = "figz://document";
 pub const COMMANDS_URI: &str = "figz://commands";
+pub const COMMENTS_URI: &str = "figz://comments";
 pub const NODE_TEMPLATE: &str = "figz://node/{id}";
 pub const COMMAND_TEMPLATE: &str = "figz://command/{id}";
 
@@ -18,6 +19,7 @@ pub fn list() -> Value {
     json!({"resources": [
         {"uri": DOC_URI, "name": "document", "title": "Active document", "description": "The active document as JSON (current page's layer tree, pages, styles, selection, history), like inspect_document.", "mimeType": "application/json"},
         {"uri": COMMANDS_URI, "name": "commands", "title": "Command catalog", "description": "Every FigZ command with label, menu, shortcut and parameter docs.", "mimeType": "application/json"},
+        {"uri": COMMENTS_URI, "name": "comments", "title": "Open comments", "description": "Every open comment thread on every page, as JSON (the same objects as comment.list).", "mimeType": "application/json"},
     ]})
 }
 
@@ -34,6 +36,9 @@ pub fn read(b: &mut dyn Backend, uri: &str) -> Result<Value, ReadError> {
     }
     if uri == COMMANDS_URI {
         return b.call("engine.commands", json!({})).map_err(ReadError::Backend);
+    }
+    if uri == COMMENTS_URI {
+        return b.call("engine.execute", json!({"command": "comment.list", "params": {"page": "all", "filter": "open"}})).map_err(ReadError::Backend);
     }
     if let Some(id) = uri.strip_prefix("figz://node/") {
         let Some(id) = figz_engine::params::id_of(&Value::String(id.to_string())) else { return Err(ReadError::NotFound(uri.into())) };
