@@ -12,6 +12,7 @@ workspace = true
 figz-geom = { workspace = true }
 figz-color = { workspace = true }
 figz-doc = { workspace = true }
+figz-format = { workspace = true }
 figz-text = { workspace = true }
 figz-pathops = { workspace = true }
 tiny-skia = { workspace = true }
