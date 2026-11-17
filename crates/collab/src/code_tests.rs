@@ -104,6 +104,7 @@ fn only_local_session_links_have_a_code() {
         "figz://join?host=[::1]:47900&file=local&token=local-0123456789a",
         "figz://join?host=192.168.1.20:0&file=local&token=local-0123456789a",
         "figz://join?host=192.168.1.20:47900&file=local&token=local-0123456789az",
+        "figz://join?host=10.0.0.1:47900&file=local&token=local-+0000000001",
         "figz://join?server=wss://example.org/&file=local&token=local-0123456789a",
         "ws://192.168.1.20:47900/?file=local&token=local-0123456789a",
         "",

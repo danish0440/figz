@@ -117,3 +117,38 @@ fn quitting_keeps_the_preferences_and_ends_the_live_sessions() {
     assert_eq!(start(&dir).session.prefs.user_name, "Ada", "the preferences were kept");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// #1290: the Linux portal opens every dialog where it likes, so the app keeps the folder itself.
+#[test]
+fn the_next_dialog_starts_in_the_folder_of_the_last_pick() {
+    use crate::services::{folder_to_remember, remembering, start_folder};
+    use std::path::PathBuf;
+    let dir = root("last-folder");
+    let file = dir.join("Poster.figz");
+    assert_eq!(folder_to_remember(&file, false), Some(dir.clone()), "a file: its folder");
+    assert_eq!(folder_to_remember(&dir, true), Some(dir.clone()), "a folder pick: the folder itself");
+    assert_eq!(folder_to_remember(std::path::Path::new("Poster.figz"), false), None, "a bare name has no folder");
+
+    let last = Arc::new(Mutex::new(None::<PathBuf>));
+    let mut pick = remembering(last.clone(), Box::pin(std::future::ready(Some(file.clone()))), false);
+    let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+    assert_eq!(pick.as_mut().poll(&mut cx), std::task::Poll::Ready(Some(file)));
+    assert_eq!(*last.lock().unwrap(), Some(dir.clone()), "a pick is remembered");
+    let mut cancelled = remembering(last.clone(), Box::pin(std::future::ready(None)), false);
+    assert_eq!(cancelled.as_mut().poll(&mut cx), std::task::Poll::Ready(None));
+    assert_eq!(*last.lock().unwrap(), Some(dir.clone()), "a cancelled dialog keeps the folder");
+
+    assert_eq!(start_folder(Some(dir.clone())), Some(dir.clone()));
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(start_folder(Some(dir)), None, "a folder deleted since: the system's own");
+}
+
+/// The update prompt's What's new and Download, and the About and Credits links, open through
+/// `ctx.open_url`. eframe drops those with only a log warning unless it is built with `links`.
+#[test]
+fn links_in_the_interface_open_in_the_browser() {
+    let manifest = include_str!("../Cargo.toml");
+    let eframe: Vec<&str> = manifest.lines().filter(|l| l.trim_start().starts_with("eframe =")).collect();
+    assert!(!eframe.is_empty(), "the app depends on eframe");
+    assert!(eframe.iter().any(|l| l.contains("\"links\"")), "eframe is built with `links`: {eframe:?}");
+}
