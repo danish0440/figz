@@ -25,11 +25,12 @@ ARCH="$(uname -m)"
 case "$ARCH" in
   arm64) ARCH=aarch64 ;;
   amd64) ARCH=x86_64 ;;
+  *) ;; # already a release name (x86_64, aarch64)
 esac
 NAME="figz-server-$VERSION-$OS-$ARCH"
 echo "==> figz-server $VERSION for $OS $ARCH"
 
-if [ "$SKIP_BUILD" = 0 ]; then
+if [[ "$SKIP_BUILD" = 0 ]]; then
   (cd "$ROOT" && cargo build --release --locked -p figz-server)
 fi
 WORK="$CARGO_TARGET_DIR/server-package"
