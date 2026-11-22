@@ -13,7 +13,7 @@ use serde_json::Value;
 use super::Ctx;
 
 /// Largest width/height/stroke/radius/spacing value taken from the file.
-pub(super) const MAX_SIZE: f64 = 1e6;
+pub(crate) const MAX_SIZE: f64 = 1e6;
 /// Largest coordinate taken from the file.
 pub(super) const MAX_COORD: f64 = 1e7;
 /// Most entries read from any one list (paints, effects, dashes, grids…).
@@ -123,10 +123,13 @@ pub(super) fn paints(cx: &mut Ctx, v: &Value, k: &str) -> Option<Vec<Paint>> {
 fn paint(cx: &mut Ctx, p: &Value) -> Option<Paint> {
     let ty = text(p, "type")?;
     let mut opacity = num(p, "opacity").unwrap_or(1.0).clamp(0.0, 1.0) as f32;
+    // The colour's alpha goes into the opacity as for a typed colour (`Paint::solid`).
+    let mut color_alpha = 1.0;
     let kind = match ty {
         "SOLID" => {
             let c = p.get("color").and_then(color).unwrap_or(Color::BLACK);
             opacity *= c.a;
+            color_alpha = c.a;
             PaintKind::Solid { color: c.with_alpha(1.0) }
         }
         "GRADIENT_LINEAR" => PaintKind::Gradient(gradient(GradientKind::Linear, p)),
@@ -139,7 +142,7 @@ fn paint(cx: &mut Ctx, p: &Value) -> Option<Paint> {
             return None;
         }
     };
-    Some(Paint { kind, opacity, visible: flag(p, "visible").unwrap_or(true), blend: paint_blend(p) })
+    Some(Paint { kind, opacity, visible: flag(p, "visible").unwrap_or(true), blend: paint_blend(p), color_alpha })
 }
 
 /// Gradient handles are already in the node's unit box (start, end, width), like ours.

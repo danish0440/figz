@@ -58,6 +58,7 @@
   <provides>
     <binary>figz</binary>
     <mediatype>application/x-figz</mediatype>
+    <mediatype>application/x-sketch</mediatype>
   </provides>
   <content_rating type="oars-1.1"/>
   <releases>
