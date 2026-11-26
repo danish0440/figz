@@ -30,7 +30,8 @@ impl Bench {
 
     fn with_document(doc: Document) -> Self {
         figz_text::scan_system_fonts();
-        let mut b = Self { ctx: egui::Context::default(), app: FigApp::new(Session::with_document(doc), Box::new(NoServices)), time: 0.0 };
+        let mut b =
+            Self { ctx: crate::framework::headless_context(), app: FigApp::new(Session::with_document(doc), Box::new(NoServices)), time: 0.0 };
         // Fonts install on the first frame; the next ones lay out and settle.
         for _ in 0..4 {
             b.frame(vec![]);
@@ -49,6 +50,7 @@ impl Bench {
         };
         let t = Instant::now();
         let app = &mut self.app;
+        app.before_input(&self.ctx);
         let mut out = self.ctx.run_ui(input, |ui| app.ui(ui));
         let ms = t.elapsed().as_secs_f64() * 1000.0;
         // No GPU here to take the texture uploads.
@@ -68,6 +70,8 @@ impl Bench {
     }
 }
 
+/// Build and print a synthetic UI benchmark report for the given layer count; it makes no
+/// assertions.
 fn report(layers: usize) {
     let mut b = Bench::new(layers);
     let mut rows: Vec<(&str, f64)> = Vec::new();
@@ -77,6 +81,7 @@ fn report(layers: usize) {
     rows.push(("hover over the canvas", b.mean(60, |i| pts[i].clone())));
     let wheel = |d: f32| Event::MouseWheel {
         unit: egui::MouseWheelUnit::Point,
+        source: egui::MouseWheelSource::Unknown,
         delta: vec2(0.0, d),
         phase: egui::TouchPhase::Move,
         modifiers: Default::default(),
@@ -179,8 +184,15 @@ fn design_system(icons: usize, instances: usize) -> (Document, figz_engine::synt
     figz_engine::synthetic_ds::design_system_with_instances(&spec, instances).unwrap()
 }
 
+/// Build a test mouse-wheel event for the given vertical delta.
 fn wheel(d: f32) -> Event {
-    Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: vec2(0.0, d), phase: egui::TouchPhase::Move, modifiers: Default::default() }
+    Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        source: egui::MouseWheelSource::Unknown,
+        delta: vec2(0.0, d),
+        phase: egui::TouchPhase::Move,
+        modifiers: Default::default(),
+    }
 }
 
 /// UI frames with a large design system: the Assets panel listing its components and the Design
@@ -290,7 +302,7 @@ fn ids(rows: &[crate::layers::Row]) -> Vec<NodeId> {
 
 #[test]
 fn layer_rows_follow_edits_undo_pages_expansion_and_filter() {
-    let ctx = egui::Context::default();
+    let ctx = crate::framework::headless_context();
     let mut s = Session::new();
     let page = s.page().unwrap();
     let frame = s.execute("node.create", &json!({"type": "frame", "x": 0, "y": 0, "width": 100, "height": 100})).unwrap()["id"].as_u64().unwrap();
@@ -333,7 +345,7 @@ fn layer_rows_follow_edits_undo_pages_expansion_and_filter() {
 
 #[test]
 fn prototype_sources_follow_edits_and_undo() {
-    let ctx = egui::Context::default();
+    let ctx = crate::framework::headless_context();
     let mut s = Session::new();
     let page = s.page().unwrap();
     let id = |v: serde_json::Value| NodeId(v["id"].as_u64().unwrap());

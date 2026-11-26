@@ -1,0 +1,126 @@
+{
+  "id": "figz",
+  "name": "FigZ",
+  "upgradeCode": "7F8B9827-D065-41B7-A514-2A454B21F484",
+  "sources": [
+    "figz.wxs"
+  ],
+  "icon": "assets/app-icon/figz.ico",
+  "localization": [
+    "figz.en-us.wxl"
+  ],
+  "extensions": [
+    "UI",
+    "Util"
+  ],
+  "payloads": [
+    "NOTICE",
+    "figz-cli.exe",
+    "figz.exe"
+  ],
+  "registry": [
+    [
+      "-1",
+      "Software\\Classes\\Figz.Image\\shell\\open\\command",
+      "",
+      "\"[#FigzExe]\" \"%1\""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.svg\\OpenWithProgids",
+      "Figz.Image",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.png\\OpenWithProgids",
+      "Figz.Image",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.jpg\\OpenWithProgids",
+      "Figz.Image",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.jpeg\\OpenWithProgids",
+      "Figz.Image",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Figz.Sketch\\shell\\open\\command",
+      "",
+      "\"[#FigzExe]\" \"%1\""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.sketch\\OpenWithProgids",
+      "Figz.Sketch",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\figz.exe",
+      "FriendlyAppName",
+      "FigZ"
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\figz.exe\\shell\\open\\command",
+      "",
+      "\"[#FigzExe]\" \"%1\""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\figz.exe\\SupportedTypes",
+      ".figz",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\figz.exe\\SupportedTypes",
+      ".svg",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\figz.exe\\SupportedTypes",
+      ".png",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\figz.exe\\SupportedTypes",
+      ".jpg",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\figz.exe\\SupportedTypes",
+      ".jpeg",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\figz.exe\\SupportedTypes",
+      ".sketch",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\figz.exe",
+      "",
+      "[#FigzExe]"
+    ],
+    [
+      "-1",
+      "Software\\FigZ",
+      "InstallDir",
+      "[INSTALLFOLDER]"
+    ]
+  ],
+  "mode": "dualScope"
+}
