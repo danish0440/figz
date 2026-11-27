@@ -181,6 +181,9 @@ node_props! {
     Annotations => annotations,
     CodeLinks => code_links,
     DevResources => dev_resources,
+    Measurements => measurements,
+    Board => board,
+    ScaleFactor => scale_factor,
 }
 
 /// A document-level property. Lists of entries with ids (styles, comments, variable collections,
@@ -219,6 +222,19 @@ pub enum DocProp {
     Variables,
     /// Variable ids in order.
     VariableOrder,
+    /// A design file or a board.
+    Kind,
+    /// A board's countdown (`null`: none).
+    Timer,
+    /// A board's vote (`null`: none); the ballots are [`Entry::Ballot`]s.
+    Vote,
+    /// Ended votes' results kept in the file, oldest first (whole).
+    VoteHistory,
+    /// The file's design review settings (`design.configure`).
+    ///
+    /// Kept last: the wire encodes a variant's position, so adding one before it would shift the
+    /// existing properties.
+    DesignReview,
 }
 
 /// A document-level entry, by id.
@@ -237,7 +253,13 @@ pub enum Entry {
     /// [`DevSnapshot`](figz_doc::DevSnapshot)).
     DevSnapshot(NodeId),
     /// An image by content hash (value: `{width, height, bytes}` with the encoded bytes in base64).
+    /// A key with the shape of a content hash (64 hex chars) must be exactly the lowercase sha256
+    /// hex `figz_format::image_hash` produces for the bytes; every key must be a plain
+    /// archive member name ([`figz_doc::ImageData::is_valid_key`]), and dimensions and byte
+    /// size are bounded as the entry applies (`image_of` in `docprops.rs`).
     Image(String),
+    /// A voter's ballot in a board's vote (value: the layer ids voted on).
+    Ballot(String),
 }
 
 /// One synced value a change writes: a node property, a document-level property or a
@@ -299,7 +321,48 @@ impl DocProp {
     }
 }
 
+impl Change {
+    /// Whether this puts or removes an image entry.
+    pub(crate) fn is_image(&self) -> bool {
+        matches!(self, Change::Put { entry: Entry::Image(_), .. } | Change::Remove { entry: Entry::Image(_) })
+    }
+
+    /// Whether this only changes comment threads (a thread, their order, or all of them): what a
+    /// comment link may send.
+    pub fn is_comment(&self) -> bool {
+        match self {
+            Change::Put { entry, .. } | Change::Remove { entry } => entry.list() == Some(Family::Comments),
+            Change::SetDoc { prop, .. } => matches!(prop.list(), Some(Ok(Family::Comments) | Err(Family::Comments))),
+            Change::Create { .. } | Change::Set { .. } | Change::Delete { .. } => false,
+        }
+    }
+
+    /// Whether this writes the file's design review settings: a batch carrying one can't be read
+    /// by a peer that doesn't announce [`crate::message::DESIGN_REVIEW`], so the server keeps it
+    /// out of what it sends them ([`Self::without_design_review`]).
+    pub(crate) fn is_design_review(&self) -> bool {
+        matches!(self, Change::SetDoc { prop: DocProp::DesignReview, .. })
+    }
+
+    /// `changes` without the review-setting edits: what an older peer reads of a batch (its other
+    /// edits, order kept), or of a catch-up delta or snapshot.
+    pub(crate) fn without_design_review(changes: Vec<Self>) -> Vec<Self> {
+        changes.into_iter().filter(|c| !c.is_design_review()).collect()
+    }
+}
+
 impl Entry {
+    /// The synced list this entry belongs to (`None` for entries kept in maps).
+    pub(crate) fn family(&self) -> Option<Family> {
+        match self {
+            Entry::Style(_) => Some(Family::Styles),
+            Entry::Comment(_) => Some(Family::Comments),
+            Entry::Collection(_) => Some(Family::Collections),
+            Entry::Variable(_) => Some(Family::Variables),
+            Entry::DevSnapshot(_) | Entry::Image(_) | Entry::Ballot(_) => None,
+        }
+    }
+
     /// The client id space the entry's id lies in ([`figz_doc::ids`]): ids made during a live
     /// session carry their creator's client id, ids from before and ids of other forms are in
     /// space 0. `None` for entries keyed by something else (dev snapshots by layer, images by
@@ -311,7 +374,7 @@ impl Entry {
             Entry::Variable(id) => Some(id_space(id, VARIABLE_ID_PREFIX)),
             Entry::Collection(id) => Some(id_space(id, COLLECTION_ID_PREFIX)),
             Entry::Comment(id) => Some(space_of(*id)),
-            Entry::DevSnapshot(_) | Entry::Image(_) => None,
+            Entry::DevSnapshot(_) | Entry::Image(_) | Entry::Ballot(_) => None,
         }
     }
 
@@ -324,6 +387,7 @@ impl Entry {
             Entry::Variable(id) => format!("variable {id}"),
             Entry::DevSnapshot(id) => format!("ready-for-dev snapshot of {id}"),
             Entry::Image(hash) => format!("image {hash}"),
+            Entry::Ballot(voter) => format!("ballot of {voter}"),
         }
     }
 
@@ -334,7 +398,7 @@ impl Entry {
             Entry::Comment(_) => Some(Family::Comments),
             Entry::Collection(_) => Some(Family::Collections),
             Entry::Variable(_) => Some(Family::Variables),
-            Entry::DevSnapshot(_) | Entry::Image(_) => None,
+            Entry::DevSnapshot(_) | Entry::Image(_) | Entry::Ballot(_) => None,
         }
     }
 }

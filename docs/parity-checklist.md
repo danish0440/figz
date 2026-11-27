@@ -1,10 +1,10 @@
 # Parity checklist
 
-> **Generated:** 2026-10-17 by `cargo xtask parity`. Do not edit by hand.
+> **Generated:** 2026-11-25 by `cargo xtask parity`. Do not edit by hand.
 
-FigZ commands registered for the incumbent's main menu and toolbar (561 commands in the engine).
+FigZ commands registered for the incumbent's main menu and toolbar (652 commands in the engine).
 
-**212 / 212 menu items (100.0%)**
+**215 / 215 menu items (100.0%)**
 
 Every catalog item has a command.
 

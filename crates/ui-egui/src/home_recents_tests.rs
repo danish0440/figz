@@ -74,7 +74,7 @@ fn columns_follow_the_width() {
 
 fn shown(path: &str, modified: Option<u64>, created: Option<u64>) -> Shown {
     let stat = Some(Stat { exists: modified.is_some(), modified, created });
-    Shown { path: path.into(), name: Path::new(path).file_stem().unwrap().to_string_lossy().into(), stat }
+    Shown { path: path.into(), name: Path::new(path).file_stem().unwrap().to_string_lossy().into(), stat, kind: Default::default() }
 }
 
 #[test]
@@ -115,6 +115,8 @@ fn view_and_sort_are_kept_in_the_preferences_and_come_back() {
     assert_eq!((View::of(&old), Sort::of(&old)), (View::Grid, Sort::default()));
     let junk: Prefs = serde_json::from_value(json!({"home_views": {"recents": "tiles"}, "home_sort": "size"})).unwrap();
     assert_eq!((View::of(&junk), Sort::of(&junk)), (View::Grid, Sort::default()));
+    let bad_order: Prefs = serde_json::from_value(json!({"home_sort": "name", "home_order": "junk"})).unwrap();
+    assert_eq!(Sort::of(&bad_order), Sort { key: SortKey::Name, descending: false });
 }
 
 /// What the services were asked to do.

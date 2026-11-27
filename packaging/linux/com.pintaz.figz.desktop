@@ -1,8 +1,11 @@
 [Desktop Entry]
 Type=Application
 Name=FigZ
+Name[ru]=FigZ
 GenericName=Interface Design Tool
+GenericName[ru]=Инструмент для дизайна интерфейсов
 Comment=Design and prototype user interfaces
+Comment[ru]=Дизайн и прототипирование пользовательских интерфейсов
 Exec=figz %U
 TryExec=figz
 Icon=com.pintaz.figz
@@ -11,4 +14,5 @@ StartupNotify=true
 StartupWMClass=com.pintaz.figz
 Categories=Graphics;2DGraphics;VectorGraphics;X-Design;
 Keywords=design;interface;ui;ux;prototype;wireframe;mockup;vector;layout;components;
-MimeType=application/x-figz;image/svg+xml;image/png;image/jpeg;x-scheme-handler/figz;
+Keywords[ru]=дизайн;интерфейс;ui;ux;прототип;вайрфрейм;макет;вектор;вёрстка;верстка;компоненты;
+MimeType=application/x-figz;image/svg+xml;image/png;image/jpeg;application/x-sketch;x-scheme-handler/figz;

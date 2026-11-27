@@ -1,6 +1,6 @@
-//! `#join=` in the page's URL.
+//! `#join=` and `?control` in the page's URL, and the server the page names for itself.
 
-use crate::query::join_link;
+use crate::query::{control, join_link, page_server};
 
 #[test]
 fn join_takes_the_rest_of_the_fragment() {
@@ -26,4 +26,59 @@ fn an_overlong_link_is_ignored() {
     let long = format!("#join=figz://join?host=h&file=f&token={}", "a".repeat(7000));
     assert_eq!(join_link(&long), None);
     assert_eq!(join_link(&format!("#join={}", "é".repeat(4000))), None, "length counts bytes");
+}
+
+#[test]
+fn control_is_opt_in() {
+    assert!(control("?control"));
+    assert!(control("?webgl&control=1"), "after other entries, with a value");
+    assert!(control("control"), "no leading ?");
+    assert!(!control(""));
+    assert!(!control("?"));
+    assert!(!control("?webgl"));
+    assert!(!control("?nocontrol&controls"), "only the whole entry name");
+}
+
+#[test]
+fn a_page_names_its_own_server_without_a_key() {
+    assert_eq!(page_server(" wss://figz.example/ ").as_deref(), Some("wss://figz.example/"));
+    assert_eq!(page_server("ws://127.0.0.1:47900/").as_deref(), Some("ws://127.0.0.1:47900/"));
+    for bad in
+        ["", "https://figz.example/", "wss://figz.example/?key=secret", "wss://a b/", "wss://x/#y", &format!("wss://{}/", "a".repeat(600))]
+    {
+        assert_eq!(page_server(bad), None, "{bad:?} is ignored");
+    }
+}
+
+#[test]
+fn a_page_ignores_invalid_server_endpoints() {
+    for bad in [
+        "ws://",
+        "wss://",
+        "wss:///figz/",
+        "wss://:443/",
+        "wss://figz.example:0/",
+        "wss://figz.example:65536/",
+        "wss://figz.example:port/",
+        "wss://[::1/",
+        "wss://figz.example/a@b/",
+    ] {
+        assert_eq!(page_server(bad), None, "{bad:?} must not replace the default server");
+    }
+}
+
+#[test]
+fn a_page_preserves_valid_server_endpoint_spelling() {
+    for server in ["ws://localhost:47900/", "wss://figz.example/figz/", "wss://[::1]:47900/figz/"] {
+        assert_eq!(page_server(server).as_deref(), Some(server), "{server}");
+    }
+}
+
+#[test]
+fn a_page_rejects_server_delimiters_that_endpoint_parsing_would_strip() {
+    for suffix in ["'", "\"", "<", ">", "\"'>"] {
+        let server = format!("wss://figz.example/{suffix}");
+        assert!(figz_collab_net::Endpoint::parse(&server).is_ok(), "the parser cleans {server:?}");
+        assert_eq!(page_server(&server), None, "{server:?} must not replace the default server");
+    }
 }

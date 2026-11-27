@@ -13,11 +13,14 @@ pub(crate) struct Ui {
     pub(crate) ctx: egui::Context,
     pub(crate) app: FigApp,
     time: f64,
+    /// The test screen's size (1440 x 900 unless a test shrinks it).
+    pub(crate) screen: egui::Vec2,
 }
 
 impl Ui {
     pub(crate) fn new(s: Session) -> Self {
-        let mut u = Self { ctx: egui::Context::default(), app: FigApp::new(s, Box::new(NoServices)), time: 0.0 };
+        let mut u =
+            Self { ctx: crate::framework::headless_context(), app: FigApp::new(s, Box::new(NoServices)), time: 0.0, screen: vec2(1440.0, 900.0) };
         for _ in 0..3 {
             u.frame(vec![]);
         }
@@ -43,11 +46,41 @@ impl Ui {
     /// screen and clock.
     pub(crate) fn frame_raw(&mut self, raw: RawInput) -> egui::FullOutput {
         self.time += 1.0 / 60.0;
-        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1440.0, 900.0))), time: Some(self.time), ..raw };
+        self.app.clock.set_test_now(Some(self.time));
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.screen)), time: Some(self.time), ..raw };
         let app = &mut self.app;
+        // As the shells do: the runtime gets FigZ's frame input before the frame.
+        app.before_input(&self.ctx);
         let mut out = self.ctx.run_ui(input, |ui| app.ui(ui));
         out.textures_delta.clear();
         out
+    }
+
+    /// One frame that egui reruns as a discarded pass (the returned output is the presented pass).
+    ///
+    /// The rerun sees the same `RawInput`; the custom text editor must not apply its events twice,
+    /// and the IME descriptor of the presented pass must still describe the first pass's result.
+    pub(crate) fn frame_raw_with_discard(&mut self, raw: RawInput) -> egui::FullOutput {
+        self.time += 1.0 / 60.0;
+        self.app.clock.set_test_now(Some(self.time));
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1440.0, 900.0))), time: Some(self.time), ..raw };
+        let Ui { ctx, app, .. } = self;
+        app.before_input(ctx);
+        let mut out = ctx.run_ui(input, |ui| {
+            app.ui(ui);
+            if ui.ctx().current_pass_index() == 0 {
+                ui.ctx().request_discard("ime test: exercise a discarded pass");
+            }
+        });
+        out.textures_delta.clear();
+        out
+    }
+
+    /// Move the harness time (and the app's monotonic clock) forward, e.g. past a deadline; the
+    /// next frame continues from here.
+    pub(crate) fn advance_clock(&mut self, secs: f64) {
+        self.time = secs;
+        self.app.clock.set_test_now(Some(secs));
     }
 
     /// The middle of `id`'s row in the layers panel (found by hovering down the panel).
@@ -99,6 +132,97 @@ fn setup() -> (Ui, NodeId, NodeId, NodeId) {
     u.app.ui.expanded.clear();
     u.frame(vec![]);
     (u, frame, child, rect)
+}
+
+#[test]
+fn vertical_auto_layout_layers_follow_the_canvas_before_and_after_a_drop() {
+    let mut s = Session::new();
+    let frame = id(s.execute("node.create", &json!({"type": "frame", "width": 180, "height": 160, "props": {"layout": "vertical"}})).unwrap());
+    let rect = |s: &mut Session, name: &str| {
+        id(s.execute("node.create", &json!({"type": "rectangle", "parent": frame, "width": 80, "height": 30, "name": name})).unwrap())
+    };
+    let first = rect(&mut s, "First");
+    let second = rect(&mut s, "Second");
+    s.execute("select.none", &json!({})).unwrap();
+    let mut u = Ui::new(s);
+    u.app.ui.expanded.insert(frame);
+    let canvas_top = |u: &Ui, id: NodeId| u.app.session.doc().unwrap().world_bounds(id).unwrap().y0;
+    assert!(canvas_top(&u, first) < canvas_top(&u, second));
+    let (top, bottom) = (u.row_at(first), u.row_at(second));
+    assert!(top.y < bottom.y, "the Layers panel follows the vertical flow");
+
+    let above_first = top - vec2(0.0, 4.0);
+    u.drag_to(bottom, above_first);
+    u.button(above_first, false);
+    assert!(canvas_top(&u, second) < canvas_top(&u, first), "dropping above moves it up on the canvas");
+    assert!(u.row_at(second).y < u.row_at(first).y, "the Layers order follows the drop");
+
+    u.app.run("select.set", json!({"ids": [second]}));
+    u.ctx.enable_accesskit();
+    u.frame(vec![]);
+    let press = |u: &mut Ui, key| {
+        u.frame(
+            [true, false]
+                .into_iter()
+                .map(|pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: Default::default() })
+                .collect(),
+        );
+    };
+    for _ in 0..4 {
+        press(&mut u, egui::Key::F6);
+        if u.app.ui.nav.region == crate::a11y::Region::Layers {
+            break;
+        }
+    }
+    assert_eq!(u.app.ui.nav.region, crate::a11y::Region::Layers);
+    press(&mut u, egui::Key::ArrowDown);
+    u.frame(vec![]);
+    assert_eq!(u.app.session.selection(), vec![first]);
+    assert_eq!(crate::a11y::focused_name(&u.ctx), "First");
+}
+
+#[test]
+fn grouped_drop_between_vertical_and_stacked_rows_keeps_the_visible_order() {
+    for source_vertical in [true, false] {
+        let mut s = Session::new();
+        let container = |s: &mut Session, x, vertical| {
+            let props = if vertical { json!({"layout": "vertical"}) } else { json!({}) };
+            id(s.execute("node.create", &json!({"type": "frame", "x": x, "width": 180, "height": 160, "props": props})).unwrap())
+        };
+        let source = container(&mut s, 0, source_vertical);
+        let target = container(&mut s, 240, !source_vertical);
+        let rect = |s: &mut Session, parent, name| {
+            id(s.execute("node.create", &json!({"type": "rectangle", "parent": parent, "width": 80, "height": 30, "name": name})).unwrap())
+        };
+        let (a, b) = if source_vertical {
+            (rect(&mut s, source, "A"), rect(&mut s, source, "B"))
+        } else {
+            let b = rect(&mut s, source, "B");
+            (rect(&mut s, source, "A"), b)
+        };
+        let c = rect(&mut s, target, "C");
+        s.execute("select.set", &json!({"ids": [b, a]})).unwrap();
+        let mut u = Ui::new(s);
+        u.app.ui.expanded.extend([source, target]);
+        let top = u.row_at(a);
+        assert!(top.y < u.row_at(b).y);
+        let above_c = u.row_at(c) - vec2(0.0, 4.0);
+        u.drag_to(top, above_c);
+        u.button(above_c, false);
+
+        let (a_row, b_row, c_row) = (u.row_at(a), u.row_at(b), u.row_at(c));
+        assert!(a_row.y < b_row.y && b_row.y < c_row.y, "A, B, C in the destination (source vertical: {source_vertical})");
+        let doc = u.app.session.doc().unwrap();
+        assert!(doc.node(source).unwrap().children.is_empty());
+        let want = if source_vertical { vec![c, b, a] } else { vec![a, b, c] };
+        assert_eq!(doc.node(target).unwrap().children, want);
+
+        u.app.run("edit.undo", json!({}));
+        let doc = u.app.session.doc().unwrap();
+        assert_eq!(doc.node(a).unwrap().parent, Some(source));
+        assert_eq!(doc.node(b).unwrap().parent, Some(source));
+        assert_eq!(doc.node(target).unwrap().children, vec![c]);
+    }
 }
 
 #[test]
@@ -164,4 +288,27 @@ fn dropping_layers_on_another_page_moves_them_there() {
     u.button(page_row, false);
     let doc = u.app.session.doc().unwrap();
     assert_eq!(doc.ancestors(rect).last().copied(), Some(p2), "moved to page 2");
+}
+
+#[test]
+fn dropping_a_layer_one_place_over_moves_it_one_place() {
+    // #992: the panel drops on a gap between rows; the layer ends up in that gap.
+    let mut s = Session::new();
+    let rect =
+        |s: &mut Session, x: i32| id(s.execute("node.create", &json!({"type": "rectangle", "x": x, "y": 0, "width": 10, "height": 10})).unwrap());
+    let (a, b, c) = (rect(&mut s, 0), rect(&mut s, 20), rect(&mut s, 40));
+    s.execute("select.none", &json!({})).unwrap();
+    let page = s.page().unwrap();
+    let mut u = Ui::new(s);
+    let kids = |u: &Ui| u.app.session.doc().unwrap().node(page).unwrap().children.clone();
+    // The list shows c, b, a top to bottom: `a` dragged onto the top edge of `b` goes just above it.
+    let (from, to) = (u.row_at(a), u.row_at(b) - vec2(0.0, 12.0));
+    u.drag_to(from, to);
+    u.button(to, false);
+    assert_eq!(kids(&u), [b, a, c], "dropped between b and c");
+    // And `c` dragged onto the bottom edge of `a` goes just below it.
+    let (from, to) = (u.row_at(c), u.row_at(a) + vec2(0.0, 12.0));
+    u.drag_to(from, to);
+    u.button(to, false);
+    assert_eq!(kids(&u), [b, c, a], "dropped between a and b");
 }

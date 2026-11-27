@@ -9,6 +9,7 @@ description = "FigZ PDF export (krilla): vector shapes, gradients, embedded imag
 workspace = true
 
 [dependencies]
+craft-pdf = { workspace = true, features = ["write"] }
 figz-geom = { workspace = true }
 figz-color = { workspace = true }
 figz-doc = { workspace = true }
