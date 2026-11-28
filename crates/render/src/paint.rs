@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use figz_color::{BlendMode, Color, Gradient, GradientKind, ImagePaint, ImageScaleMode, Paint, PaintKind};
-use figz_doc::Document;
+use figz_doc::{Document, ImageData};
 use tiny_skia::{FilterQuality, GradientStop, Pixmap, Point, Shader, SpreadMode, Transform};
 
 pub fn ts_color(c: Color) -> tiny_skia::Color {
@@ -79,11 +79,13 @@ fn diamond_pixmap(g: &Gradient, opacity: f32) -> Option<Arc<Pixmap>> {
     const N: u32 = 256;
     let mut p = Pixmap::new(N, N)?;
     let half = f64::from(N) / 2.0;
+    // Sorted once for the 65 536 samples below, not once per sample.
+    let stops = g.sorted_stops();
     for (i, px) in p.data_mut().as_chunks_mut::<4>().0.iter_mut().enumerate() {
         let x = ((i as u32 % N) as f64 + 0.5 - half) / half;
         let y = ((i as u32 / N) as f64 + 0.5 - half) / half;
         let t = (x.abs() + y.abs()) as f32;
-        let c = g.sample(t);
+        let c = figz_color::sample_sorted(&stops, t);
         let a = c.a * opacity;
         let q = |v: f32| (v * a * 255.0).round().clamp(0.0, 255.0) as u8;
         px.copy_from_slice(&[q(c.r), q(c.g), q(c.b), (a * 255.0).round().clamp(0.0, 255.0) as u8]);
@@ -95,11 +97,12 @@ fn diamond_pixmap(g: &Gradient, opacity: f32) -> Option<Arc<Pixmap>> {
 /// (the resolution pattern tiles are drawn at). Returns `None` when the paint draws nothing
 /// (invisible, fully transparent, missing image or pattern source).
 pub fn prepare(paint: &Paint, w: f64, h: f64, scale: f64, doc: &Document) -> Option<Prepared> {
-    prepare_at(paint, w, h, scale, doc, 0.0)
+    prepare_at(paint, w, h, scale, doc, 0.0, false)
 }
 
-/// [`prepare`] `time` seconds into animated GIFs (0: their first frame).
-pub fn prepare_at(paint: &Paint, w: f64, h: f64, scale: f64, doc: &Document, time: f64) -> Option<Prepared> {
+/// [`prepare`] `time` seconds into animated GIFs (0: their first frame); on the canvas (`preview`)
+/// a large image shown smaller than its pixels draws from a smaller copy (see [`still`]).
+pub fn prepare_at(paint: &Paint, w: f64, h: f64, scale: f64, doc: &Document, time: f64, preview: bool) -> Option<Prepared> {
     if !paint.visible || paint.opacity <= 0.0 {
         return None;
     }
@@ -140,15 +143,19 @@ pub fn prepare_at(paint: &Paint, w: f64, h: f64, scale: f64, doc: &Document, tim
             let moving = crate::images::frame_at(&img.image, data, &img.filters, doc.color_profile, time);
             let pm = match &moving {
                 Some(f) => f.clone(),
-                None => crate::images::get(&img.image, data, &img.filters, doc.color_profile)?,
+                None => still(img, data, w, h, scale, doc, preview)?,
             };
-            let transform = image_transform(img, f64::from(pm.width()), f64::from(pm.height()), w, h);
+            let (pw, ph) = (f64::from(pm.width()), f64::from(pm.height()));
             if img.scale_mode == ImageScaleMode::Tile {
+                let transform = image_transform(img, pw, ph, w, h);
                 return Some(Prepared::Pattern { pixmap: pm, mode: SpreadMode::Repeat, quality: FilterQuality::Bicubic, opacity: op, transform });
             }
+            // A smaller copy goes where the image itself would.
+            let (iw, ih) = crate::images::source_size(data, &pm);
+            let transform = Transform::from_scale((iw / pw) as f32, (ih / ph) as f32).post_concat(image_transform(img, iw, ih, w, h));
             // An image covering the whole box fills it to its edges (a transparent border would
             // fade them where the image is scaled up).
-            if covers_box(img, f64::from(pm.width()), f64::from(pm.height()), w, h) {
+            if covers_box(img, iw, ih, w, h) {
                 return Some(Prepared::Pattern { pixmap: pm, mode: SpreadMode::Pad, quality: FilterQuality::Bicubic, opacity: op, transform });
             }
             // Fit/Crop: a transparent 1-px border so Pad spreads transparency, not edge pixels.
@@ -162,6 +169,42 @@ pub fn prepare_at(paint: &Paint, w: f64, h: f64, scale: f64, doc: &Document, tim
         }
         PaintKind::Pattern(pt) => crate::pattern::prepare(doc, pt, w, h, scale, time, op),
     }
+}
+
+/// The pixmap image paint `img` draws in a `w` × `h` box at `scale` device pixels per unit: on the
+/// canvas (`preview`) a copy no larger than the image shows ([`crate::images::shown`]), else the
+/// image itself, scaled down where it shows at half its size or less ([`crate::images::filtered`]).
+/// Tiles keep the image: their size is in its pixels.
+/// shortcut: tiles shown much smaller can still alias; scale their transform with the copy if that turns up.
+fn still(img: &ImagePaint, data: Option<&ImageData>, w: f64, h: f64, scale: f64, doc: &Document, preview: bool) -> Option<Arc<Pixmap>> {
+    let (iw, ih) = data.map_or((0, 0), |d| (d.width, d.height));
+    if img.scale_mode != ImageScaleMode::Tile && iw > 0 && ih > 0 {
+        let t = image_transform(img, f64::from(iw), f64::from(ih), w, h);
+        // `scale` is the layer's largest stretch, so the product bounds what any direction shows.
+        let stretch = max_stretch(t.sx.into(), t.ky.into(), t.kx.into(), t.sy.into());
+        let side = scale * stretch * f64::from(iw.max(ih));
+        let pick = if preview { crate::images::shown } else { crate::images::filtered };
+        return pick(&img.image, data, &img.filters, doc.color_profile, side);
+    }
+    crate::images::get(&img.image, data, &img.filters, doc.color_profile)
+}
+
+/// The most the linear map `[a c; b d]` stretches any direction (its largest singular value): the
+/// scale for uniform scaling and rotation, the longer axis for a squeeze.
+pub(crate) fn max_stretch(a: f64, b: f64, c: f64, d: f64) -> f64 {
+    let sum = a * a + b * b + c * c + d * d;
+    let det = a * d - b * c;
+    ((sum + (sum * sum - 4.0 * det * det).max(0.0).sqrt()) / 2.0).sqrt()
+}
+
+/// Whether image paint `img` paints its whole `w` × `h` box opaque: an image without transparent
+/// pixels that covers the box (or tiles it).
+/// shortcut: always looks at the image itself (exact, also on the canvas), so a large image with
+/// shadows still decodes in full there; pass the canvas scale here if that turns up (#1483).
+pub(crate) fn fills_box_opaque(doc: &Document, img: &ImagePaint, w: f64, h: f64) -> bool {
+    let Some(pm) = crate::images::get(&img.image, doc.images.get(&img.image), &img.filters, doc.color_profile) else { return false };
+    (img.scale_mode == ImageScaleMode::Tile || covers_box(img, f64::from(pm.width()), f64::from(pm.height()), w, h))
+        && crate::images::opaque(&img.image, &pm)
 }
 
 /// Whether an image paint covers its whole `w` × `h` box: Fill always, Crop when its frame does.

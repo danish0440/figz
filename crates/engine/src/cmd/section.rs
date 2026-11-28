@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 use super::CommandSpec;
 use crate::devinspect::{dev_items, has_status};
-use crate::params::*;
+use crate::params::{boolean, get, req_targets, string, targets};
 use crate::{Result, Session, bad, spec};
 
 /// Longest change reason kept.
@@ -34,7 +34,7 @@ pub fn specs() -> Vec<CommandSpec> {
         spec!(
             "dev.compare",
             "Compare changes",
-            "{id? (default the first selected layer), show? (open the compare view in the app)} → {id, name, changed, snapshot, added, removed, modified, truncated, changes: [{id, name, type, change: added|removed|changed, depth, layers, properties?: [{section, property, before, after, text}]}]}  what changed in a ready-for-dev frame or section since it was marked (`snapshot` is false when that isn't known: a file from before snapshots were kept)",
+            "{id? (default the first selected layer), version? (a version id from version.list: compare with that saved version instead; any top-level frame or section), show? (open the compare view in the app)} → {id, name, changed, snapshot, added, removed, modified, truncated, version: {id, name, time} | null, changes: [{id, name, type, change: added|removed|changed, depth, layers, properties?: [{section, property, before, after, text}]}]}  what changed in a ready-for-dev frame or section since it was marked, or since the version (`snapshot` is false when that isn't known: a file from before snapshots were kept)",
             false,
             compare
         ),
@@ -61,11 +61,11 @@ fn toggle_contents(s: &mut Session, p: &Value) -> Result<Value> {
         return Err(bad(cmd, "select a section"));
     }
     let hide = boolean(p, "hidden").unwrap_or_else(|| !sections.iter().all(|i| doc.node(*i).is_some_and(|n| n.hides_contents())));
-    // Selected layers inside a section being hidden give way to the section.
+    // Selected layers inside sections being hidden give way to the outermost targeted section.
     let sel: Vec<NodeId> = s.selection();
     let mut new_sel: Vec<NodeId> = Vec::new();
     for i in sel {
-        let inside = if hide { sections.iter().copied().find(|sec| doc.is_ancestor(*sec, i)) } else { None };
+        let inside = if hide { doc.ancestors(i).into_iter().rfind(|ancestor| sections.contains(ancestor)) } else { None };
         let keep = inside.unwrap_or(i);
         if !new_sel.contains(&keep) {
             new_sel.push(keep);
@@ -104,14 +104,30 @@ fn resolve_change(s: &mut Session, p: &Value) -> Result<Value> {
 fn compare(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "dev.compare";
     let id = targets(s, p).first().copied().ok_or_else(|| bad(cmd, "select a frame or section or pass `id`"))?;
-    let doc = s.doc()?;
+    let version = match get(p, "version") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(v)) => Some(v.clone()),
+        Some(_) => return Err(bad(cmd, "version: a version id (version.list)")),
+    };
+    let ds = s.ds()?;
+    let doc = &ds.doc;
     let n = doc.node(id).ok_or_else(|| bad(cmd, "no such layer"))?;
-    if !has_status(doc, id) || n.dev_status != DevStatus::ReadyForDev {
-        return Err(bad(cmd, "compare a frame or section marked ready for dev"));
+    if !has_status(doc, id) {
+        return Err(bad(cmd, "compare a top-level frame or a section"));
     }
-    let v = serde_json::to_value(crate::devcompare::compare(doc, id)).unwrap_or(Value::Null);
+    let (cmp, against) = match &version {
+        Some(v) => {
+            let ver = ds.versions.iter().find(|x| x.id == *v).ok_or_else(|| bad(cmd, format!("no version `{v}`")))?;
+            let before = crate::cmd::file::read_version(ver)?;
+            (crate::devcompare::compare_with(&before, doc, id), json!({"id": ver.id, "name": ver.name, "time": ver.time}))
+        }
+        None if n.dev_status != DevStatus::ReadyForDev => return Err(bad(cmd, "compare a frame or section marked ready for dev, or pass `version`")),
+        None => (crate::devcompare::compare(doc, id), Value::Null),
+    };
+    let mut v = serde_json::to_value(cmp).unwrap_or(Value::Null);
+    v["version"] = against;
     if boolean(p, "show") == Some(true) {
-        s.request_ui("view.devCompare", json!({"id": id}));
+        s.request_ui("view.devCompare", json!({"id": id, "version": version}));
     }
     Ok(v)
 }

@@ -6,6 +6,10 @@ license.workspace = true
 publish = false
 description = "FigZ command line: info, export, convert, render, scripted commands, MCP server, perf"
 
+[lib]
+name = "figz_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "figz-cli"
 path = "src/main.rs"
@@ -15,6 +19,7 @@ workspace = true
 
 [dependencies]
 figz-engine = { workspace = true }
+figz-collab-net = { workspace = true }
 figz-doc = { workspace = true }
 figz-render = { workspace = true }
 figz-text = { workspace = true }
@@ -22,3 +27,10 @@ figz-svg = { workspace = true }
 figz-format = { workspace = true }
 figz-mcp = { workspace = true }
 serde_json = { workspace = true }
+clap = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# 4.6 breaks Bash subcommand completion for hyphenated binary names (clap-rs/clap#6421).
+clap_complete = "~4.5.67"
+clap_mangen = "0.3"

@@ -13,7 +13,7 @@ fn colourful() -> (Document, NodeId) {
     let mut d = Document::new("c");
     let p = d.first_page().unwrap();
     let r = d.create(p, NodeKind::Rectangle, "R", 0.0, 0.0, 10.0, 10.0).unwrap();
-    let t = d.create(p, NodeKind::Text(TextData::default()), "T", 0.0, 0.0, 10.0, 10.0).unwrap();
+    let t = d.create(p, NodeKind::Text(TextData::default().into()), "T", 0.0, 0.0, 10.0, 10.0).unwrap();
     {
         let n = d.node_mut(r).unwrap();
         n.fills = vec![Paint::solid(RED)];
@@ -28,6 +28,7 @@ fn colourful() -> (Document, NodeId) {
                 close_on_outside: false,
                 background: Some(RED),
                 offset: None,
+                anchor: Default::default(),
             }],
             transition: Default::default(),
             duration_ms: 300,
@@ -133,4 +134,12 @@ fn profile_and_presets_serialize_only_when_set() {
     let back: Document = serde_json::from_value(v).unwrap();
     assert_eq!(back.color_profile, ColorProfile::DisplayP3);
     assert_eq!(back.image_presets, d.image_presets);
+}
+
+#[test]
+fn text_decoration_colour_is_visited() {
+    let mut s = TextStyle::default();
+    s.set_look(|l| l.color = Some(RED));
+    s.for_each_color_mut(&mut |c| *c = Color::BLACK);
+    assert_eq!(s.look().color, Some(Color::BLACK), "decoration colour not visited");
 }

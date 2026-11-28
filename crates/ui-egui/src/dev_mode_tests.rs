@@ -1,8 +1,10 @@
 //! Dev Mode in the UI, driven headless (the harness is `present_tests`'): the compare view opens
 //! from `dev.compare {show}`, switches to the overlay and closes with Escape before the focus view
-//! does; the focus view's Escape; the annotation filter.
+//! does; the focus view's Escape; the annotation filter; the playground's instance-swap menu.
 
-use egui::{Key, pos2};
+use egui::accesskit::{Node, Role};
+use egui::{Event, Key, MouseWheelUnit, Pos2, TouchPhase, pos2, vec2};
+use figz_doc::NodeId;
 use figz_engine::Session;
 use serde_json::json;
 
@@ -79,4 +81,300 @@ fn annotation_filter_and_categories_panel() {
     assert_eq!(CategoryFilter::parse(&doc, "Accessibility"), Some(CategoryFilter::Only("accessibility".into())));
     assert_eq!(CategoryFilter::parse(&doc, "none"), Some(CategoryFilter::Uncategorized));
     assert_eq!(CategoryFilter::parse(&doc, "nope"), None);
+}
+
+#[test]
+fn the_assets_list_shows_a_slice_with_a_preview_name_and_export_format() {
+    let mut s = Session::new();
+    let f = id(&s.execute("frame.create", &json!({"x": 0, "y": 0, "width": 200, "height": 200, "name": "Login"})).unwrap());
+    s.execute("shape.rectangle", &json!({"x": 20, "y": 20, "width": 80, "height": 40, "parent": f, "props": {"fill": "#FF0000"}})).unwrap();
+    // A slice with one export setting: its own format is what the row offers first.
+    let slice = id(&s.execute("node.create", &json!({"type": "slice", "x": 10, "y": 10, "width": 100, "height": 60, "name": "Avatar"})).unwrap());
+    s.execute("export.add", &json!({"ids": [slice], "setting": {"format": "webp", "size": "2x"}})).unwrap();
+    s.execute("select.set", &json!({"ids": [slice]})).unwrap();
+    let mut u = crate::layers_drag_tests::Ui::new(s);
+    u.app.ui.right_tab = crate::RightTab::Inspect;
+    u.ctx.enable_accesskit();
+    let out = u.frame_output(vec![]);
+    let nodes: Vec<egui::accesskit::Node> =
+        out.platform_output.accesskit_update.expect("an AccessKit update").nodes.into_iter().map(|(_, n)| n).collect();
+    let find = |role: egui::accesskit::Role, label: &str| {
+        nodes.iter().find(|n| n.role() == role && n.label() == Some(label)).unwrap_or_else(|| panic!("no {role:?} named {label:?}"))
+    };
+    // The row exports by a click, and the format under the name is a dropdown.
+    find(egui::accesskit::Role::Button, "Export Avatar");
+    let fmt = find(egui::accesskit::Role::ComboBox, "Format");
+    assert_eq!(fmt.value(), Some("WebP"));
+    assert_eq!(fmt.is_expanded(), Some(false));
+    // A format picked there stays after the document changes.
+    let at = centre(fmt);
+    click(&mut u, at);
+    let svg = tree(&mut u).into_iter().find(|n| n.label() == Some("SVG")).expect("SVG in the format menu");
+    click(&mut u, centre(&svg));
+    let revision = u.app.session.ds().unwrap().revision;
+    u.app.session.execute("node.set", &json!({"ids": [slice], "props": {"name": "Avatar"}})).unwrap();
+    u.app.session.execute("node.set", &json!({"ids": [f], "props": {"name": "Sign in"}})).unwrap();
+    assert_ne!(u.app.session.ds().unwrap().revision, revision);
+    let fmt = tree(&mut u).into_iter().find(|n| n.role() == Role::ComboBox && n.label() == Some("Format")).unwrap();
+    assert_eq!(fmt.value(), Some("SVG"));
+}
+
+/// A "Button" component whose nested "Heart" instance is its instance-swap property "Icon", a
+/// second icon "Star", and an instance of the button selected in the Inspect tab. Returns (ui,
+/// instance, heart, star).
+fn swap_setup() -> (crate::layers_drag_tests::Ui, NodeId, NodeId, NodeId) {
+    let mut s = Session::new();
+    let icon = |s: &mut Session, name: &str, x: i32| {
+        let f = id(&s.execute("frame.create", &json!({"x": x, "y": 0, "width": 24, "height": 24, "name": name})).unwrap());
+        id(&s.execute("component.create", &json!({"ids": [f]})).unwrap())
+    };
+    let (heart, star) = (icon(&mut s, "Heart", 0), icon(&mut s, "Star", 40));
+    let f = id(&s.execute("frame.create", &json!({"x": 0, "y": 100, "width": 120, "height": 40, "name": "Button"})).unwrap());
+    let nested = id(&s.execute("instance.create", &json!({"component": heart, "x": 8, "y": 108, "parent": f})).unwrap());
+    let button = id(&s.execute("component.create", &json!({"ids": [f]})).unwrap());
+    s.execute("component.addProperty", &json!({"id": button, "name": "Icon", "type": "instanceSwap", "default": heart, "layer": nested})).unwrap();
+    let inst = id(&s.execute("instance.create", &json!({"component": button, "x": 0, "y": 300})).unwrap());
+    s.execute("select.set", &json!({"ids": [inst]})).unwrap();
+    let mut u = crate::layers_drag_tests::Ui::new(s);
+    u.app.ui.right_tab = crate::RightTab::Inspect;
+    u.ctx.enable_accesskit();
+    (u, inst, heart, star)
+}
+
+fn tree(u: &mut crate::layers_drag_tests::Ui) -> Vec<Node> {
+    u.frame_output(vec![]).platform_output.accesskit_update.unwrap().nodes.into_iter().map(|(_, n)| n).collect()
+}
+
+fn centre(n: &Node) -> Pos2 {
+    let b = n.bounds().unwrap();
+    pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
+}
+
+fn click(u: &mut crate::layers_drag_tests::Ui, at: Pos2) {
+    u.button(at, true);
+    u.button(at, false);
+}
+
+/// The playground's dropdown for property `name`, scrolled into view.
+fn playground_combo(u: &mut crate::layers_drag_tests::Ui, name: &str) -> Option<Node> {
+    for _ in 0..20 {
+        let combo = tree(u).into_iter().find(|n| n.role() == Role::ComboBox && n.label() == Some(name))?;
+        if centre(&combo).y < 860.0 {
+            return Some(combo);
+        }
+        let wheel = Event::MouseWheel {
+            unit: MouseWheelUnit::Point,
+            source: egui::MouseWheelSource::Unknown,
+            delta: vec2(0.0, -100.0),
+            phase: TouchPhase::Move,
+            modifiers: Default::default(),
+        };
+        u.frame(vec![Event::PointerMoved(pos2(1300.0, 500.0)), wheel]);
+        for _ in 0..30 {
+            u.frame(vec![]);
+        }
+    }
+    None
+}
+
+#[test]
+fn the_playground_swaps_an_instance_in_the_preview_only() {
+    let (mut u, inst, heart, star) = swap_setup();
+    let (doc, undo) = (u.app.session.ds().unwrap().doc.clone(), u.app.session.undo_depth());
+    let combo = playground_combo(&mut u, "Icon").expect("the playground has a dropdown for the instance-swap property");
+    assert_eq!(combo.value(), Some("Heart"));
+    // Open it and pick Star: the item that wasn't there before the menu opened.
+    let before: Vec<Pos2> = tree(&mut u).iter().filter(|n| n.label() == Some("Star")).map(centre).collect();
+    click(&mut u, centre(&combo));
+    let item = tree(&mut u).into_iter().find(|n| n.label() == Some("Star") && !before.contains(&centre(n))).expect("Star in the menu");
+    click(&mut u, centre(&item));
+    let combo = playground_combo(&mut u, "Icon").unwrap();
+    assert_eq!(combo.value(), Some("Star"), "the playground shows the swapped icon");
+    // The file isn't touched: the instance still has the heart, nothing to undo.
+    assert!(std::sync::Arc::ptr_eq(&doc, &u.app.session.ds().unwrap().doc));
+    assert_eq!(u.app.session.undo_depth(), undo);
+    let props = u.app.session.execute("component.properties", &json!({"id": inst})).unwrap();
+    assert_eq!(props["properties"][0]["value"], json!(heart.0), "{star:?}");
+}
+
+#[test]
+fn the_annotation_tool_opens_the_inspect_tab_with_the_note_field_focused() {
+    let (mut u, _, r) = setup();
+    u.app.ui.right_tab = crate::RightTab::Design;
+    u.frames(2, Vec::new);
+    u.run("tool.annotation", json!({"id": r}));
+    u.frames(2, Vec::new);
+    assert_eq!(u.app.ui.right_tab, crate::RightTab::Inspect, "the request shows the Inspect tab");
+    let field = egui::Id::unique(("annot_new", r)).with("te");
+    assert!(u.ctx.memory(|m| m.has_focus(field)), "the layer's new-note field has the caret");
+    assert_eq!(u.app.ui.dev.focus_new_note, None, "the focus request is spent");
+    // Asking again while already on the Inspect tab does not toggle it away.
+    u.run("tool.annotation", json!({"id": r}));
+    u.frames(2, Vec::new);
+    assert_eq!(u.app.ui.right_tab, crate::RightTab::Inspect);
+    assert!(u.ctx.memory(|m| m.has_focus(field)), "the field has the caret again");
+    assert_eq!(u.app.ui.dev.focus_new_note, None, "and the request is spent");
+}
+
+/// A request for a layer that isn't selected (or is gone) does not wait to take the keyboard later.
+#[test]
+fn a_note_request_for_a_layer_that_is_not_selected_is_dropped() {
+    let (mut u, _, r) = setup();
+    u.app.session.execute("select.set", &json!({"ids": []})).unwrap();
+    u.frames(2, Vec::new);
+    u.app.session.request_ui("annotation.new", json!({"id": r}));
+    u.frames(2, Vec::new);
+    assert_eq!(u.app.ui.dev.focus_new_note, None);
+}
+
+/// Choosing the Annotation tool from the toolbar on the Inspect tab keeps the tab (an editing tool
+/// would leave it for Design) and asks for the selected layer's note.
+#[test]
+fn the_toolbar_keeps_the_inspect_tab_for_the_annotation_tool() {
+    let (mut u, _, r) = setup();
+    u.app.session.execute("select.set", &json!({"ids": [r]})).unwrap();
+    crate::toolbar::choose(&mut u.app, figz_engine::ToolId::Annotation);
+    u.frames(2, Vec::new);
+    assert_eq!(u.app.ui.right_tab, crate::RightTab::Inspect);
+    assert!(u.ctx.memory(|m| m.has_focus(egui::Id::unique(("annot_new", r)).with("te"))), "the note field has the caret");
+    crate::toolbar::choose(&mut u.app, figz_engine::ToolId::Rectangle);
+    assert_eq!(u.app.ui.right_tab, crate::RightTab::Design, "a drawing tool leaves it");
+}
+
+#[test]
+fn a_rule_draft_belongs_to_its_document_and_outlives_a_refusal() {
+    let (mut u, f, _) = setup();
+    let gone = NodeId(999_999);
+    let field = crate::dev_mode::rule_draft(&u.app, gone);
+    u.ctx.data_mut(|d| d.insert_temp(field, "Cards stack".to_string()));
+    crate::dev_mode::add_rule(&mut u.app, &u.ctx, gone, "Cards stack");
+    assert_eq!(u.ctx.data(|d| d.get_temp::<String>(field)).as_deref(), Some("Cards stack"), "a refused rule keeps its text");
+    let field = crate::dev_mode::rule_draft(&u.app, f);
+    u.ctx.data_mut(|d| d.insert_temp(field, "Cards stack".to_string()));
+    crate::dev_mode::add_rule(&mut u.app, &u.ctx, f, "Cards stack");
+    assert_eq!(u.ctx.data(|d| d.get_temp::<String>(field)), None, "an added rule clears it");
+    // Another document's layer with the same id has a draft of its own.
+    u.run("file.new", json!({}));
+    assert_ne!(crate::dev_mode::rule_draft(&u.app, f), field);
+}
+
+#[test]
+fn a_typed_rule_stays_when_the_field_loses_focus() {
+    let mut s = Session::new();
+    let f = id(&s.execute("frame.create", &json!({"x": 0, "y": 0, "width": 300, "height": 400, "name": "Home"})).unwrap());
+    s.execute("select.set", &json!({"ids": [f]})).unwrap();
+    let mut u = crate::layers_drag_tests::Ui::new(s);
+    u.app.ui.right_tab = crate::RightTab::Inspect;
+    u.ctx.enable_accesskit();
+    u.frame(vec![]);
+    let te = crate::dev_mode::rule_editor(&u.app, f).with("te");
+    u.ctx.memory_mut(|m| m.request_focus(te));
+    u.frame(vec![]);
+    u.frame(vec![Event::Text("Cards stack".into())]);
+    // Click something else in the panel: the field loses focus as it does in use.
+    let mobile = tree(&mut u).into_iter().find(|n| n.role() == Role::Button && n.label() == Some("Mobile")).expect("the Mobile button");
+    click(&mut u, centre(&mobile));
+    u.frame(vec![]);
+    let draft = u.ctx.data(|d| d.get_temp::<String>(crate::dev_mode::rule_draft(&u.app, f)));
+    assert_eq!(draft.as_deref(), Some("Cards stack"));
+}
+
+/// The text the field whose editor is `te` shows, as assistive technology reads it.
+fn shown(u: &mut crate::layers_drag_tests::Ui, te: egui::Id) -> String {
+    let nodes = u.frame_output(vec![]).platform_output.accesskit_update.unwrap().nodes;
+    let field = nodes.into_iter().find(|(at, _)| *at == te.accesskit_id()).expect("the field").1;
+    field.value().unwrap_or_default().to_string()
+}
+
+/// `n` frames with no input.
+fn idle(u: &mut crate::layers_drag_tests::Ui, n: usize) {
+    for _ in 0..n {
+        u.frame(vec![]);
+    }
+}
+
+/// A frame named `name`, marked desktop and selected, with the Inspect tab drawn.
+fn marked_frame(u: &mut crate::layers_drag_tests::Ui, name: &str) -> NodeId {
+    let f = id(&u.app.run("frame.create", json!({"x": 0, "y": 0, "width": 300, "height": 400, "name": name})).unwrap());
+    u.app.run("responsive.set", json!({"ids": [f], "viewport": "desktop"}));
+    u.app.run("select.set", json!({"ids": [f]}));
+    idle(u, 3);
+    f
+}
+
+#[test]
+fn an_unfinished_group_edit_stays_with_its_document() {
+    let mut u = crate::layers_drag_tests::Ui::new(Session::new());
+    u.app.ui.right_tab = crate::RightTab::Inspect;
+    u.ctx.enable_accesskit();
+    let a = marked_frame(&mut u, "Home");
+    let field = tree(&mut u).into_iter().find(|n| n.label() == Some("Design it's a version of")).expect("the group field");
+    click(&mut u, centre(&field));
+    u.frame(vec![Event::Text("Alpha".into())]);
+    // Left unfinished: another document opens, with a layer of the same id.
+    u.app.run("file.new", json!({}));
+    let b = marked_frame(&mut u, "Pricing");
+    assert_eq!(a, b, "the same layer id in both documents");
+    let enter = |pressed| Event::Key { key: Key::Enter, physical_key: None, pressed, repeat: false, modifiers: Default::default() };
+    u.frame(vec![enter(true), enter(false)]);
+    idle(&mut u, 2);
+    let group = u.app.session.doc().unwrap().node(b).unwrap().plugin_data.get("figz.viewportGroup").cloned();
+    assert_ne!(group.as_deref(), Some("Alpha"), "the other document's edit didn't land here");
+}
+
+#[test]
+fn a_rule_left_typed_when_the_section_hid_isnt_added_unseen() {
+    let mut u = crate::layers_drag_tests::Ui::new(Session::new());
+    u.app.ui.right_tab = crate::RightTab::Inspect;
+    u.ctx.enable_accesskit();
+    let f = marked_frame(&mut u, "Home");
+    let te = crate::dev_mode::rule_editor(&u.app, f).with("te");
+    u.ctx.memory_mut(|m| m.request_focus(te));
+    u.frame(vec![]);
+    u.frame(vec![Event::Text("Stale".into())]);
+    // The section goes while the field has focus, then comes back.
+    u.app.run("select.set", json!({"ids": []}));
+    idle(&mut u, 3);
+    u.app.run("select.set", json!({"ids": [f]}));
+    idle(&mut u, 3);
+    let add = tree(&mut u).into_iter().find(|n| n.role() == Role::Button && n.label() == Some("Add rule")).expect("Add rule");
+    click(&mut u, centre(&add));
+    idle(&mut u, 2);
+    let rules = u.app.session.doc().unwrap().node(f).unwrap().annotations.len();
+    assert_eq!(rules, 0, "nothing the field doesn't show is added");
+    // Nor does it come back when the field is edited again.
+    u.ctx.memory_mut(|m| m.request_focus(te));
+    idle(&mut u, 2);
+    assert_eq!(shown(&mut u, te), "", "the field starts from what it showed");
+}
+
+#[test]
+fn a_rule_added_while_its_field_keeps_focus_is_added_once() {
+    let mut u = crate::layers_drag_tests::Ui::new(Session::new());
+    u.app.ui.right_tab = crate::RightTab::Inspect;
+    u.ctx.enable_accesskit();
+    let f = marked_frame(&mut u, "Home");
+    let te = crate::dev_mode::rule_editor(&u.app, f).with("te");
+    u.ctx.memory_mut(|m| m.request_focus(te));
+    u.frame(vec![]);
+    u.frame(vec![Event::Text("Cards stack".into())]);
+    // An assistive Click activates the button without taking focus from the field.
+    let nodes = u.frame_output(vec![]).platform_output.accesskit_update.unwrap().nodes;
+    let add = nodes.iter().find(|(_, n)| n.role() == Role::Button && n.label() == Some("Add rule")).expect("Add rule").0;
+    let activate = || {
+        Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+            action: egui::accesskit::Action::Click,
+            target_tree: egui::accesskit::TreeId::ROOT,
+            target_node: add,
+            data: None,
+        })
+    };
+    u.frame(vec![activate()]);
+    idle(&mut u, 2);
+    assert!(u.ctx.memory(|m| m.has_focus(te)), "the field kept focus");
+    assert_eq!(u.app.session.doc().unwrap().node(f).unwrap().annotations.len(), 1);
+    assert_eq!(shown(&mut u, te), "", "the field clears once the rule is added");
+    u.frame(vec![activate()]);
+    idle(&mut u, 2);
+    assert_eq!(u.app.session.doc().unwrap().node(f).unwrap().annotations.len(), 1, "a second activation adds nothing");
 }

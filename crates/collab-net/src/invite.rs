@@ -14,6 +14,11 @@
 //! A join by code names the server to ask and the code:
 //! `figz://join?server=<ws(s)://…>&code=<code>` ([`Invite::parse_join`]); the server says which
 //! file and token the code stands for.
+//!
+//! A file of a server's team list is named by the server and the file, without a token:
+//! `figz://join?server=<ws(s)://…>&file=<id>&team=1` ([`Invite::team_link`]); the server hands
+//! out the file's team link to whoever asks, while the file is shared. Such a link carries no
+//! secret: whoever can reach the server may join with it.
 
 /// Where a session or a server listens: `ws://host:port/path` or `wss://…` (TLS).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,6 +39,15 @@ pub struct Invite {
     pub file: String,
     /// The link's secret.
     pub token: String,
+}
+
+/// What to ask an invite's server before joining: its answer gives the file and token.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Lookup {
+    /// The file a join code opens.
+    Code(String),
+    /// The team link of the invite's file (on the server's team list).
+    Team,
 }
 
 /// Longest link accepted (anything longer isn't one of ours).
@@ -68,6 +82,15 @@ impl Endpoint {
             Ok(a) => a.ip().is_loopback(),
             Err(_) => self.host.rsplit_once(':').is_some_and(|(name, _)| name.eq_ignore_ascii_case("localhost")),
         }
+    }
+
+    /// Whether this endpoint is within an explicitly allowed server origin and path prefix.
+    pub fn is_within(&self, allowed: &Endpoint) -> bool {
+        self.secure == allowed.secure
+            && self.host.eq_ignore_ascii_case(&allowed.host)
+            && safe_path(&self.path)
+            && safe_path(&allowed.path)
+            && (allowed.path == "/" || self.path.starts_with(&allowed.path))
     }
 
     /// Read `ws(s)://host[:port][/path][?query]` (a missing port is the scheme's: 80 or 443): the
@@ -121,6 +144,16 @@ impl Invite {
         }
     }
 
+    /// The `figz://join?…&team=1` link to this invite's file on its server's team list (no
+    /// token: the server gives the team link to whoever asks).
+    pub fn team_link(&self) -> String {
+        if self.server.is_plain() {
+            format!("figz://join?host={}&file={}&team=1", self.server.host, self.file)
+        } else {
+            format!("figz://join?server={}&file={}&team=1", self.server.url(), self.file)
+        }
+    }
+
     /// The same session as a WebSocket URL.
     pub fn url(&self) -> String {
         format!("{}?file={}&token={}", self.server.url(), self.file, self.token)
@@ -140,13 +173,15 @@ impl Invite {
     pub fn parse(link: &str) -> Result<Invite, String> {
         match Self::parse_join(link)? {
             (invite, None) => Ok(invite),
-            (_, Some(_)) => Err("that names a join code, not a file: join with it first".into()),
+            (_, Some(Lookup::Code(_))) => Err("that names a join code, not a file: join with it first".into()),
+            (_, Some(Lookup::Team)) => Err("that names a file of a server's team list, not its link: join with it first".into()),
         }
     }
 
-    /// Read what a join starts from: an invite link, or a server with a join code to ask it about
-    /// (then the invite names only the server, until the server says what the code opens).
-    pub fn parse_join(link: &str) -> Result<(Invite, Option<String>), String> {
+    /// Read what a join starts from: an invite link, a server with a join code to ask it about
+    /// (then the invite names only the server, until the server says what the code opens), or a
+    /// file of a server's team list (then the invite has no token until the server gives one).
+    pub fn parse_join(link: &str) -> Result<(Invite, Option<Lookup>), String> {
         let link = clean(link);
         if link.len() > MAX_LINK {
             return Err(NOT.into());
@@ -174,9 +209,12 @@ impl Invite {
         if let Some(code) = get("code") {
             let code = figz_collab::code::normalize(&code).ok().filter(|c| c.len() == figz_collab::code::ONLINE_LEN);
             let code = code.ok_or("the link's join code isn't one")?;
-            return Ok((Invite { server, file: String::new(), token: String::new() }, Some(code)));
+            return Ok((Invite { server, file: String::new(), token: String::new() }, Some(Lookup::Code(code))));
         }
         let file = get("file").filter(|f| valid_id(f, 1, 64)).ok_or("the invite link has no valid file id")?;
+        if get("team").is_some() {
+            return Ok((Invite { server, file, token: String::new() }, Some(Lookup::Team)));
+        }
         let token = get("token").filter(|t| valid_id(t, 16, 128)).ok_or("the invite link has no valid token")?;
         Ok((Invite { server, file, token }, None))
     }
@@ -230,6 +268,10 @@ fn valid_host(s: &str) -> bool {
 /// A path of unreserved characters and slashes, starting with `/`.
 fn valid_path(p: &str) -> bool {
     p.starts_with('/') && p.len() <= 256 && p.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'/' | b'-' | b'_' | b'.' | b'~'))
+}
+
+fn safe_path(p: &str) -> bool {
+    !p.split('/').any(|part| matches!(part, "." | ".."))
 }
 
 /// `%XX` escapes decoded (UTF-8); `None` for broken escapes.

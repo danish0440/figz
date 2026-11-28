@@ -41,6 +41,8 @@ pub struct Client {
     /// The session joined (see [`ServerMsg::Welcome`]).
     session: u64,
     id: u32,
+    /// What this client resumes its id with (see [`Resume::secret`]).
+    secret: u64,
     /// The server's state as of `seq`.
     confirmed: Replica,
     seq: u64,
@@ -84,15 +86,25 @@ impl Client {
 
     /// Start from the server's `Welcome` (which must carry a snapshot).
     pub fn join(welcome: ServerMsg) -> Result<Client, Error> {
-        let ServerMsg::Welcome { session, client_id, seq, catch_up: CatchUp::Snapshot(snapshot), processed, peers, access } = welcome else {
+        let ServerMsg::Welcome { session, client_id, seq, catch_up, processed, peers, access, secret } = welcome else {
             return Err(Error::Protocol("expected a welcome with the document".into()));
         };
-        let mut confirmed = Replica::from_snapshot(&snapshot)?;
+        let mut confirmed = match catch_up {
+            CatchUp::Snapshot(snapshot) => Replica::from_snapshot(&snapshot)?,
+            CatchUp::DeltaSnapshot(bytes) => {
+                let limits = crate::Limits::default();
+                crate::delta_snapshot::decode_delta_snapshot(&bytes, 1 << 30, limits.max_nodes)?
+            }
+            CatchUp::Delta(_) | CatchUp::Packed(_) => {
+                return Err(Error::Protocol("expected a welcome with the document".into()));
+            }
+        };
         confirmed.document_mut().set_client_id(client_id);
         let next_id = confirmed.document().next_id();
         Ok(Client {
             session,
             id: client_id,
+            secret,
             view: confirmed.clone(),
             confirmed,
             seq,
@@ -224,6 +236,12 @@ impl Client {
         // Everything queued before this batch is waiting (or it would have gone already), so at
         // most this edit goes now, and no undo becomes ready to go.
         Ok(self.flush(&NoRecompute).pop())
+    }
+
+    /// Whether `doc` differs from what this client shows only in comment threads (what a comment
+    /// link may send; nothing differing counts too).
+    pub fn changes_only_comments(&self, doc: &Document) -> bool {
+        diff(&self.view, doc).is_ok_and(|d| d.changes.iter().all(Change::is_comment))
     }
 
     /// Undo the user's last step that still changes something: write back the values it replaced
@@ -415,9 +433,10 @@ impl Client {
         ClientMsg::Hello(Hello { resume: Some(self.resume()), ..hello })
     }
 
-    /// What a reconnect resumes with: this client's session, id and last sequence number.
+    /// What a reconnect resumes with: this client's session, id, last sequence number and the
+    /// secret its id was given with.
     pub fn resume(&self) -> Resume {
-        Resume { session: self.session, client_id: self.id, seq: self.seq }
+        Resume { session: self.session, client_id: self.id, seq: self.seq, secret: self.secret }
     }
 
     /// Handle a message from the server. Returns messages to send: batches that were waiting for
@@ -454,14 +473,19 @@ impl Client {
             }
             // Cursor chat, spotlights and what a server says about its hosting are the app's (the
             // transport hands them over).
-            ServerMsg::Pong | ServerMsg::Signal { .. } | ServerMsg::Hosting(_) | ServerMsg::Reported { .. } | ServerMsg::Resolved { .. } => {
-                Ok(Vec::new())
-            }
+            ServerMsg::Pong
+            | ServerMsg::Signal { .. }
+            | ServerMsg::Hosting(_)
+            | ServerMsg::Reported { .. }
+            | ServerMsg::Resolved { .. }
+            | ServerMsg::Branches(_)
+            | ServerMsg::Branch(_) => Ok(Vec::new()),
             ServerMsg::Welcome { .. } if self.online => Err(Error::Protocol("already joined".into())),
-            ServerMsg::Welcome { session, client_id, seq, catch_up, processed, peers, access } => {
+            ServerMsg::Welcome { session, client_id, seq, catch_up, processed, peers, access, secret } => {
                 if session != self.session || client_id != self.id {
-                    return self.restart(ServerMsg::Welcome { session, client_id, seq, catch_up, processed, peers, access });
+                    return self.restart(ServerMsg::Welcome { session, client_id, seq, catch_up, processed, peers, access, secret });
                 }
+                self.secret = secret;
                 self.access = access;
                 self.rejoin(seq, catch_up, &processed, peers, recompute)
             }
@@ -549,6 +573,10 @@ impl Client {
         peers: Vec<Peer>,
         recompute: &dyn Recompute,
     ) -> Result<Vec<ClientMsg>, Error> {
+        // The transport unpacks a packed document first (`message::unpack`).
+        if matches!(catch_up, CatchUp::Packed(_)) {
+            return Err(Error::Protocol("expected the document unpacked".into()));
+        }
         let last_batch = processed.last_batch;
         // An undo or redo lost in flight is made again before it goes out, knowing what others did
         // meanwhile: its step conflicts with what they wrote while it was in flight, and with what
@@ -562,6 +590,7 @@ impl Client {
         self.presence.clear();
         let offline = || "it no longer applied when the connection came back".to_string();
         match catch_up {
+            CatchUp::Packed(_) => {}
             CatchUp::Delta(batches) => {
                 for acc in batches {
                     if acc.author == self.id {
@@ -577,26 +606,13 @@ impl Client {
             CatchUp::Snapshot(snapshot) => {
                 let mut confirmed = Replica::from_snapshot(&snapshot)?;
                 confirmed.document_mut().set_client_id(self.id);
-                self.confirmed = confirmed;
-                self.seq = seq;
-                // What the server accepted meanwhile is in the snapshot. Which of the batches since
-                // were others' isn't known, so the steps check every value they wrote below.
-                while let Some(p) = self.pending.front().filter(|p| p.batch_id <= last_batch).cloned() {
-                    self.pending.pop_front();
-                    if processed.refused.contains(&p.batch_id) {
-                        self.refused(&p, offline());
-                    } else if p.kind != BatchKind::FollowUp
-                        && let Some(s) = p.step.and_then(|id| find_step(&mut self.undo, &mut self.redo, id))
-                    {
-                        s.settle(p.kind);
-                    }
-                }
-                for s in self.undo.iter_mut().chain(self.redo.iter_mut()).filter(|s| s.confirmed) {
-                    s.verify(&self.confirmed)?;
-                }
-                for p in &mut self.pending {
-                    p.rebased = true;
-                }
+                self.rejoin_with_confirmed(confirmed, seq, last_batch, processed)?;
+            }
+            CatchUp::DeltaSnapshot(bytes) => {
+                let limits = crate::Limits::default();
+                let mut confirmed = crate::delta_snapshot::decode_delta_snapshot(&bytes, 1 << 30, limits.max_nodes)?;
+                confirmed.document_mut().set_client_id(self.id);
+                self.rejoin_with_confirmed(confirmed, seq, last_batch, processed)?;
             }
         }
         if self.seq != seq {
@@ -614,6 +630,31 @@ impl Client {
         self.online = true;
         self.rebuild();
         Ok(self.flush(recompute))
+    }
+
+    fn rejoin_with_confirmed(&mut self, confirmed: Replica, seq: u64, last_batch: u64, processed: &Processed) -> Result<(), Error> {
+        let offline = || "it no longer applied when the connection came back".to_string();
+        self.confirmed = confirmed;
+        self.seq = seq;
+        // What the server accepted meanwhile is in the snapshot. Which of the batches since
+        // were others' isn't known, so the steps check every value they wrote below.
+        while let Some(p) = self.pending.front().filter(|p| p.batch_id <= last_batch).cloned() {
+            self.pending.pop_front();
+            if processed.refused.contains(&p.batch_id) {
+                self.refused(&p, offline());
+            } else if p.kind != BatchKind::FollowUp
+                && let Some(s) = p.step.and_then(|id| find_step(&mut self.undo, &mut self.redo, id))
+            {
+                s.settle(p.kind);
+            }
+        }
+        for s in self.undo.iter_mut().chain(self.redo.iter_mut()).filter(|s| s.confirmed) {
+            s.verify(&self.confirmed)?;
+        }
+        for p in &mut self.pending {
+            p.rebased = true;
+        }
+        Ok(())
     }
 
     /// A session that doesn't know this client (it restarted without its saved state) welcomed
