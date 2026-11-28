@@ -113,7 +113,7 @@ fn local_skip_ink_override_preserves_shared_style_and_omitted_value_inherits() {
         let node = doc.nodes().find(|n| n.name == "Label").unwrap();
         assert_eq!(node.kind.text().unwrap().style.look().skip_ink, expected);
         let linked = doc.style(node.styles.text.as_deref().unwrap()).unwrap();
-        let StyleKind::Text { style } = &linked.kind else { panic!("linked definition must remain text") };
+        let StyleKind::Text { style, .. } = &linked.kind else { panic!("linked definition must remain text") };
         assert!(style.look().skip_ink, "local value must not alter definition");
     }
 }
@@ -181,7 +181,7 @@ fn export_writes_one_actual_node_value_and_complete_run_values_without_skip_only
     let mut skipped = text.style.clone();
     skipped.set_look(|look| look.skip_ink = true);
     text.runs = vec![StyleRun { start: 1, end: 3, style: skipped }];
-    doc.create(doc.first_page().unwrap(), NodeKind::Text(text), "Label", 0.0, 0.0, 100.0, 30.0).unwrap();
+    doc.create(doc.first_page().unwrap(), NodeKind::Text(text.into()), "Label", 0.0, 0.0, 100.0, 30.0).unwrap();
 
     let (bytes, warnings) = export(&doc, None).unwrap();
     assert!(warnings.is_empty(), "skip-ink is supported: {warnings:?}");
@@ -203,14 +203,14 @@ fn export_writes_one_actual_node_value_and_complete_run_values_without_skip_only
     custom.style.set_look(|look| look.skip_ink = true);
     custom.style.set_look(|look| look.thickness = figz_doc::DecorationLength::Pixels(2.0));
     let mut custom_doc = Document::new("Unsupported decoration");
-    custom_doc.create(custom_doc.first_page().unwrap(), NodeKind::Text(custom), "Custom", 0.0, 0.0, 100.0, 30.0).unwrap();
+    custom_doc.create(custom_doc.first_page().unwrap(), NodeKind::Text(custom.into()), "Custom", 0.0, 0.0, 100.0, 30.0).unwrap();
     let (_, warnings) = export(&custom_doc, None).unwrap();
     assert!(warnings.iter().any(|w| w.contains("text decoration looks")), "custom look warning missing: {warnings:?}");
 
     let mut variable = TextData::new("x");
     variable.style.variations.insert("wght".into(), 400.0);
     let mut variable_doc = Document::new("Variable font warning");
-    variable_doc.create(variable_doc.first_page().unwrap(), NodeKind::Text(variable), "Variable", 0.0, 0.0, 100.0, 30.0).unwrap();
+    variable_doc.create(variable_doc.first_page().unwrap(), NodeKind::Text(variable.into()), "Variable", 0.0, 0.0, 100.0, 30.0).unwrap();
     let (_, warnings) = export(&variable_doc, None).unwrap();
     assert!(warnings.iter().any(|w| w.contains("variable font settings")), "variation warning missing: {warnings:?}");
 
@@ -223,11 +223,19 @@ fn export_writes_one_actual_node_value_and_complete_run_values_without_skip_only
         id: "body".into(),
         name: "Body".into(),
         description: String::new(),
-        kind: StyleKind::Text { style: shared },
+        kind: StyleKind::Text { style: shared, paragraph: Default::default() },
         bound: Default::default(),
     });
     let id = linked_doc
-        .create(linked_doc.first_page().unwrap(), NodeKind::Text(TextData { style: local, ..TextData::new("x") }), "Label", 0.0, 0.0, 100.0, 30.0)
+        .create(
+            linked_doc.first_page().unwrap(),
+            NodeKind::Text((TextData { style: local, ..TextData::new("x") }).into()),
+            "Label",
+            0.0,
+            0.0,
+            100.0,
+            30.0,
+        )
         .unwrap();
     linked_doc.node_mut(id).unwrap().styles.text = Some("body".into());
     let (bytes, warnings) = export(&linked_doc, None).unwrap();
@@ -237,7 +245,7 @@ fn export_writes_one_actual_node_value_and_complete_run_values_without_skip_only
     let node = back.nodes().find(|n| n.name == "Label").unwrap();
     assert!(!node.kind.text().unwrap().style.look().skip_ink);
     let linked = back.style(node.styles.text.as_deref().unwrap()).unwrap();
-    let StyleKind::Text { style } = &linked.kind else { panic!("shared style link must remain text") };
+    let StyleKind::Text { style, .. } = &linked.kind else { panic!("shared style link must remain text") };
     assert!(style.look().skip_ink, "local false must not alter the shared definition");
 }
 
@@ -259,7 +267,7 @@ fn skip_ink_without_an_underline_stays_out_of_the_look_and_exports_the_default()
 
     // ...and default native text writes the default, which reads back as the default look.
     let mut doc = Document::new("Plain");
-    doc.create(doc.first_page().unwrap(), NodeKind::Text(TextData::new("x")), "Label", 0.0, 0.0, 100.0, 30.0).unwrap();
+    doc.create(doc.first_page().unwrap(), NodeKind::Text(TextData::new("x").into()), "Label", 0.0, 0.0, 100.0, 30.0).unwrap();
     let (bytes, _) = export(&doc, None).unwrap();
     let archive = super::Archive::open(&bytes).unwrap();
     let (schema, body) = super::decode_canvas(&archive.canvas).unwrap();
